@@ -112,6 +112,7 @@ export interface TInvoice {
   status?:InvoiceStatus;
   charges?:ICharge[];
   options?:Options;
+  currencyCode:string;
 }
 
 export type InvoiceStatus =

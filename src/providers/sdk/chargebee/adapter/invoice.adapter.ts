@@ -16,7 +16,7 @@ export class InvoiceAdapter{
       }
       const charges:ICharge[]=invoice.line_items?.map(item=>{
         const charge:ICharge={
-          amount:item.amount??0,
+          amount:item.amount?item.amount/100:0,
           description:item.description,
         }
         return charge
@@ -31,7 +31,8 @@ export class InvoiceAdapter{
         },
         status:invoice.status,
         options:{discounts:discounts},
-        charges:charges
+        charges:charges,
+        currencyCode:invoice.currency_code
       }
       return res;
     }

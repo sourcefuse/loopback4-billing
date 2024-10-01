@@ -53,7 +53,8 @@ export class ChargeBeeService implements IChargeBeeService {
       }).request();
       return this.customerAdapter.convert(result.customer);
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
 
@@ -62,7 +63,8 @@ export class ChargeBeeService implements IChargeBeeService {
       const result = await chargebee.customer.retrieve(customerId).request();
       return this.customerAdapter.convert(result.customer);
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async updateCustomerById(customerId: string, customerDto: Partial<IChargeBeeCustomer>): Promise<void> {
@@ -96,7 +98,8 @@ export class ChargeBeeService implements IChargeBeeService {
       await chargebee.customer.update(customerId, transformedDto).request();
 
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
 
@@ -104,7 +107,8 @@ export class ChargeBeeService implements IChargeBeeService {
     try {
       await chargebee.customer.delete(customerId).request();
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async createPaymentSource(paymentDto: IChargeBeePaymentSource): Promise<IChargeBeePaymentSource> {
@@ -124,7 +128,8 @@ export class ChargeBeeService implements IChargeBeeService {
 
       return this.paymentSource.convert(result.payment_source);
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async applyPaymentSourceForInvoice(invoiceId: string, transaction: Transaction,): Promise<IChargeBeeInvoice> {
@@ -159,7 +164,8 @@ export class ChargeBeeService implements IChargeBeeService {
 
 
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async retrievePaymentSource(paymentSourceId: string): Promise<IChargeBeePaymentSource> {
@@ -167,14 +173,16 @@ export class ChargeBeeService implements IChargeBeeService {
       const result = await chargebee.payment_source.retrieve(paymentSourceId).request();
       return this.paymentSource.convert(result.payment_source);
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async deletePaymentSource(paymentSourceId: string): Promise<void> {
     try {
       await chargebee.payment_source.delete(paymentSourceId).request();
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async createInvoice(invoice: IChargeBeeInvoice): Promise<IChargeBeeInvoice> {
@@ -196,11 +204,13 @@ export class ChargeBeeService implements IChargeBeeService {
           charges: invoice.charges,
           auto_collection: invoice.options.autoCollection,
           discounts: invoice.options.discounts ?? [],
+          currency_code:invoice.currencyCode
         })
         .request();
       return this.invoiceAdapter.convert(result.invoice);
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async retrieveInvoice(invoiceId: string): Promise<IChargeBeeInvoice> {
@@ -208,13 +218,14 @@ export class ChargeBeeService implements IChargeBeeService {
       const result = await chargebee.invoice.retrieve(invoiceId).request();
       return this.invoiceAdapter.convert(result.invoice);
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async updateInvoice(invoiceId: string, invoice: Partial<IChargeBeeInvoice>): Promise<IChargeBeeInvoice> {
     try {
       const result = await chargebee.invoice.update_details(invoiceId, {
-        shipping_address:{
+        shipping_address: {
           first_name: invoice.shippingAddress?.firstName,
           last_name: invoice.shippingAddress?.lastName,
           email: invoice.shippingAddress?.email,
@@ -228,14 +239,16 @@ export class ChargeBeeService implements IChargeBeeService {
       }).request();
       return this.invoiceAdapter.convert(result.invoice);
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async deleteInvoice(invoiceId: string): Promise<void> {
     try {
       await chargebee.invoice.delete(invoiceId).request();
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
   async getPaymentStatus(invoiceId: string): Promise<boolean> {
@@ -243,7 +256,8 @@ export class ChargeBeeService implements IChargeBeeService {
       const result = await chargebee.invoice.retrieve(invoiceId).request();
       return result.invoice.status == 'paid' ? true : false;
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new Error(JSON.stringify(error));
     }
   }
 }
