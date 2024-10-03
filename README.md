@@ -76,7 +76,8 @@ CHARGEBEE_SITE_URL=your_chargebee_site_url
 ```
 
 ### Step 2: Register Billing Component
-To use the billing component in your LoopBack 4 application, you need to register it in your application.ts file.
+To use the billing component in your LoopBack 4 application. you need to register it in your application.ts file. And bind the Choosen billing Provider with their respective key. If provider is REST API based then bind it with `BillingComponentBindings.RestProvider`, else if the provider is SDK based bind it with `BillingComponentBindings.SDKProvider`.
+for Chargebee -
 
 ```
 import { BillingComponent } from 'loopback4-billing';
@@ -89,6 +90,10 @@ export class YourApplication extends BootMixin(
 
     // Register Billing component
     this.component(BillingComponent);
+
+    this.bind(BillingComponentBindings.SDKProvider).toProvider(
+      ChargeBeeServiceProvider,
+    );
 
     // Other configurations
   }
