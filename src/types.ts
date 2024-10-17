@@ -1,6 +1,5 @@
-import {Filter} from '@loopback/repository';
 import {AnyObject} from '@loopback/repository';
-import { ICardDto, ICharge } from './providers';
+import {ICardDto, ICharge} from './providers';
 
 /**
  * Interface defining the component's options object
@@ -42,22 +41,15 @@ export interface IService {
   getPaymentStatus(invoiceId: string): Promise<boolean>;
 }
 
-// export interface Transaction {
-//   amount?: number; // Optional, in cents, min=0
-//   payment_method: 'cash' | 'check' | 'bank_transfer' | 'other' | 'custom' | 'payment_source'; // Required
-//   payment_source_id?:string;
-//   reference_number?: string; // Optional, max 100 chars
-//   custom_payment_method_id?: string; // Optional, max 50 chars
-//   id_at_gateway?: string; // Optional, max 100 chars
-//   status?: 'success' | 'failure'; // Optional
-//   date?: number; // Optional, timestamp in seconds (UTC)
-//   error_code?: string; // Optional, max 100 chars
-//   error_text?: string; // Optional, max 65k chars
-// }
-
 export interface Transaction {
   amount?: number; // Optional, in cents, min=0
-  paymentMethod: 'cash' | 'check' | 'bank_transfer' | 'other' | 'custom' | 'payment_source'; // Required
+  paymentMethod:
+    | 'cash'
+    | 'check'
+    | 'bank_transfer'
+    | 'other'
+    | 'custom'
+    | 'payment_source'; // Required
   paymentSourceId?: string;
   referenceNumber?: string; // Optional, max 100 chars
   customPaymentMethodId?: string; // Optional, max 50 chars
@@ -66,23 +58,22 @@ export interface Transaction {
   date?: number; // Optional, timestamp in seconds (UTC)
   errorCode?: string; // Optional, max 100 chars
   errorText?: string; // Optional, max 65k chars
-  comment?:string;
+  comment?: string;
 }
 
-
-export interface TCustomer{
-  id?:string;
-  firstName:string;
-  lastName:string;
-  email:string;
-  company?:string;
-  billingAddress?:TAddress;
-  phone?:string;
-  options?:Options;
+export interface TCustomer {
+  id?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  company?: string;
+  billingAddress?: TAddress;
+  phone?: string;
+  options?: Options;
 }
 
 export interface TAddress {
-  id?:string;
+  id?: string;
   firstName?: string | undefined;
   lastName?: string | undefined;
   email?: string | undefined;
@@ -92,27 +83,26 @@ export interface TAddress {
   state?: string | undefined;
   zip?: string | undefined;
   country?: string | undefined;
-  options?:Options;
+  options?: Options;
 }
-
 
 export type Options = AnyObject;
 
 export interface TPaymentSource {
-  id?:string;
+  id?: string;
   customerId: string;
-  card?:ICardDto;
-  options?:Options;
+  card?: ICardDto;
+  options?: Options;
 }
 
 export interface TInvoice {
   id?: string;
   customerId: string;
   shippingAddress?: TAddress;
-  status?:InvoiceStatus;
-  charges?:ICharge[];
-  options?:Options;
-  currencyCode:string;
+  status?: InvoiceStatus;
+  charges?: ICharge[];
+  options?: Options;
+  currencyCode: string;
 }
 
 export type InvoiceStatus =
