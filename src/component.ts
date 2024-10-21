@@ -1,17 +1,16 @@
 import {
-  Application,
-  injectable,
   Component,
   config,
   ContextTags,
   CoreBindings,
   inject,
+  injectable,
   ProviderMap,
 } from '@loopback/core';
-import {BillingComponentBindings} from './keys';
-import {DEFAULT_BILLING_OPTIONS, BillingComponentOptions} from './types';
 import {RestApplication} from '@loopback/rest';
-import { BillingProvider } from './providers';
+import {BillingComponentBindings} from './keys';
+import {BillingProvider} from './providers';
+import {BillingComponentOptions, DEFAULT_BILLING_OPTIONS} from './types';
 
 // Configure the binding for BillingComponent
 @injectable({tags: {[ContextTags.KEY]: BillingComponentBindings.COMPONENT}})
