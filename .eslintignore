@@ -1,4 +1,12 @@
 node_modules/
 dist/
 coverage/
+api-docs/
+typing/
+src/__tests__/
+
+index.*
+.cz-config.js
+commitlint.config.js
+
 .eslintrc.js
