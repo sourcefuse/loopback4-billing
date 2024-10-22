@@ -7,8 +7,14 @@ users.
 
 Install the following extensions:
 
- - [eslint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
- - [prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+- [tslint](https://marketplace.visualstudio.com/items?itemName=eg2.tslint)
+- [prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+
+## Setup Commit Hooks
+
+Run the following script to prepare husky after the first time install -
+
+`npm run prepare`
 
 ## Development workflow
 
@@ -25,7 +31,7 @@ Install the following extensions:
 
 ### Other editors/IDEs
 
-1. Open a new terminal window/tab and start the continuous build process via
+1. Open a new terminal window/tab and start the continous build process via
    `npm run build:watch`. It will run TypeScript compiler in watch mode,
    recompiling files as you change them. Any compilation errors will be printed
    to the terminal.

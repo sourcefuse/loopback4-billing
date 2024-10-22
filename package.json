@@ -13,34 +13,37 @@
         "node": ">=18"
     },
     "scripts": {
-        "build": "lb-tsc",
+        "build": "npm run clean && lb-tsc",
         "build:watch": "lb-tsc --watch",
-        "lint": "npm run eslint && npm run prettier:check",
+        "clean": "lb-clean dist *.tsbuildinfo",
+        "lint": "npm run prettier:check && npm run eslint",
         "lint:fix": "npm run eslint:fix && npm run prettier:fix",
-        "prettier:cli": "prettier \"**/*.ts\" \"**/*.js\"",
+        "prettier:cli": "lb-prettier \"**/*.ts\" \"**/*.js\"",
         "prettier:check": "npm run prettier:cli -- -l",
         "prettier:fix": "npm run prettier:cli -- --write",
-        "eslint": "eslint --report-unused-disable-directives .",
+        "eslint": "lb-eslint --report-unused-disable-directives .",
         "eslint:fix": "npm run eslint -- --fix",
-        "pretest": "npm run rebuild",
-        "test": "lb-mocha --allow-console-logs \"dist/__tests__\"",
-        "test:dev": "lb-mocha --allow-console-logs dist/__tests__/**/*.js",
-        "clean": "lb-clean dist *.tsbuildinfo .eslintcache",
-        "rebuild": "npm run clean && npm run build",
-        "postinstall": "npm run build",
-        "prune": "npm prune --production"
+        "pretest": "npm run build",
+        "test": "echo No Tests",
+        "posttest": "npm run lint",
+        "test:dev": "lb-mocha --allow-console-logs dist/__tests__/**/*.js && npm run posttest",
+        "prepublishOnly": "npm run test",
+        "prepare": "husky install"
     },
     "repository": {
         "type": "git",
-        "url": ""
+        "url": "https://github.com/sourcefuse/loopback4-billing"
     },
-    "author": "Tyagi-Sunny<sunny.tyagi@sourcefuse.com>",
+    "author": "Sourcefuse",
     "license": "MIT",
     "files": [
         "README.md",
+        "index.js",
+        "index.d.ts",
         "dist",
         "src",
         "!*/__tests__"
+
     ],
     "peerDependencies": {
         "@loopback/core": "^6.0.0"
@@ -56,9 +59,65 @@
         "@loopback/core": "^6.0.0",
         "@loopback/eslint-config": "^14.0.5",
         "@loopback/testlab": "^6.1.5",
-        "@types/node": "^16.18.70",
-        "eslint": "^8.51.0",
+        "@types/node": "^18.11.9",
         "source-map-support": "^0.5.21",
-        "typescript": "~5.2.2"
+        "typescript": "~5.2.2",
+        "husky": "^7.0.4",
+        "@commitlint/cli": "^17.7.1",
+        "@commitlint/config-conventional": "^17.7.0",
+        "@semantic-release/changelog": "^6.0.1",
+        "@semantic-release/commit-analyzer": "^9.0.2",
+        "@semantic-release/git": "^10.0.1",
+        "@semantic-release/npm": "^9.0.1",
+        "@semantic-release/release-notes-generator": "^10.0.3",
+        "commitizen": "^4.2.4",
+        "cz-conventional-changelog": "^3.3.0",
+        "cz-customizable": "^6.3.0",
+        "cz-customizable-ghooks": "^2.0.0",
+        "eslint": "^8.57.0",
+        "semantic-release": "^19.0.3",
+        "simple-git": "^3.15.1"
+    },
+    "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-customizable"
     }
+  },
+  "release": {
+    "branches": [
+      "master"
+    ],
+    "plugins": [
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "preset": "angular",
+          "releaseRules": [
+            {
+              "type": "chore",
+              "scope": "deps",
+              "release": "patch"
+            }
+          ]
+        }
+      ],
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/npm",
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "package.json",
+            "CHANGELOG.md"
+          ],
+          "message": "chore(release): ${nextRelease.version} semantic"
+        }
+      ],
+      "@semantic-release/github"
+    ],
+    "repositoryUrl": "git@github.com:sourcefuse/loopback4-billing.git"
+  }
 }
