@@ -58,7 +58,6 @@ export class ChargeBeeService implements IChargeBeeService {
         .request();
       return this.customerAdapter.convert(result.customer);
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -68,7 +67,6 @@ export class ChargeBeeService implements IChargeBeeService {
       const result = await chargebee.customer.retrieve(customerId).request();
       return this.customerAdapter.convert(result.customer);
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -104,7 +102,6 @@ export class ChargeBeeService implements IChargeBeeService {
 
       await chargebee.customer.update(customerId, transformedDto).request();
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -113,7 +110,6 @@ export class ChargeBeeService implements IChargeBeeService {
     try {
       await chargebee.customer.delete(customerId).request();
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -136,7 +132,6 @@ export class ChargeBeeService implements IChargeBeeService {
 
       return this.paymentSource.convert(result.payment_source);
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -176,7 +171,6 @@ export class ChargeBeeService implements IChargeBeeService {
         .request();
       return this.invoiceAdapter.convert(result.invoice);
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -189,7 +183,6 @@ export class ChargeBeeService implements IChargeBeeService {
         .request();
       return this.paymentSource.convert(result.payment_source);
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -197,7 +190,6 @@ export class ChargeBeeService implements IChargeBeeService {
     try {
       await chargebee.payment_source.delete(paymentSourceId).request();
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -229,7 +221,6 @@ export class ChargeBeeService implements IChargeBeeService {
         .request();
       return this.invoiceAdapter.convert(result.invoice);
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -238,7 +229,6 @@ export class ChargeBeeService implements IChargeBeeService {
       const result = await chargebee.invoice.retrieve(invoiceId).request();
       return this.invoiceAdapter.convert(result.invoice);
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -264,7 +254,6 @@ export class ChargeBeeService implements IChargeBeeService {
         .request();
       return this.invoiceAdapter.convert(result.invoice);
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
@@ -272,16 +261,14 @@ export class ChargeBeeService implements IChargeBeeService {
     try {
       await chargebee.invoice.delete(invoiceId).request();
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
   async getPaymentStatus(invoiceId: string): Promise<boolean> {
     try {
       const result = await chargebee.invoice.retrieve(invoiceId).request();
-      return result.invoice.status === 'paid' ? true : false;
+      return result.invoice.status === 'paid';
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }

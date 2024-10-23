@@ -74,15 +74,15 @@ export interface TCustomer {
 
 export interface TAddress {
   id?: string;
-  firstName?: string | undefined;
-  lastName?: string | undefined;
-  email?: string | undefined;
-  company?: string | undefined;
-  phone?: string | undefined;
-  city?: string | undefined;
-  state?: string | undefined;
-  zip?: string | undefined;
-  country?: string | undefined;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  company?: string;
+  phone?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
   options?: Options;
 }
 

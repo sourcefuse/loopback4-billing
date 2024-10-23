@@ -17,18 +17,18 @@ export interface IChargeBeeInvoice extends TInvoice {
 }
 
 export interface IAddressDto {
-  firstName?: string | undefined;
-  lastName?: string | undefined;
-  email?: string | undefined;
-  company?: string | undefined;
-  phone?: string | undefined;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  company?: string;
+  phone?: string;
   line1?: string;
   line2?: string;
   line3?: string;
-  city?: string | undefined;
-  state?: string | undefined;
-  zip?: string | undefined;
-  country?: string | undefined;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
 }
 
 export interface ICharge {
