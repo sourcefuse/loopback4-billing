@@ -1,4 +1,4 @@
-/* eslint-disable-next-line @typescript-eslint/naming-convention */
+/* eslint-disable @typescript-eslint/naming-convention */
 import {inject} from '@loopback/core';
 import Stripe from 'stripe';
 import {TInvoice, Transaction} from '../../../types';

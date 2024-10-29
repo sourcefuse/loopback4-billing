@@ -1,4 +1,4 @@
-/* eslint-disable-next-line @typescript-eslint/naming-convention */
+/* eslint-disable @typescript-eslint/naming-convention */
 import {AnyObject} from '@loopback/repository';
 import {IAdapter} from '../../../../types';
 import {IStripeInvoice} from '../type';
