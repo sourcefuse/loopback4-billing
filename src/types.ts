@@ -40,16 +40,20 @@ export interface IService {
   deleteInvoice(invoiceId: string): Promise<void>;
   getPaymentStatus(invoiceId: string): Promise<boolean>;
 }
+export interface IAdapter<T, R = T> {
+  adaptToModel(resp: any): T;
+  adaptFromModel(data: Partial<R>): any;
+}
 
 export interface Transaction {
   amount?: number; // Optional, in cents, min=0
   paymentMethod:
-    | 'cash'
-    | 'check'
-    | 'bank_transfer'
-    | 'other'
-    | 'custom'
-    | 'payment_source'; // Required
+  | 'cash'
+  | 'check'
+  | 'bank_transfer'
+  | 'other'
+  | 'custom'
+  | 'payment_source'; // Required
   paymentSourceId?: string;
   referenceNumber?: string; // Optional, max 100 chars
   customPaymentMethodId?: string; // Optional, max 50 chars
