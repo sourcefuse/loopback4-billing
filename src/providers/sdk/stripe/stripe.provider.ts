@@ -7,7 +7,7 @@ export class StripeServiceProvider implements Provider<IStripeService> {
   constructor(
     @inject(StripeBindings.config, {optional: true})
     private readonly stripeConfig: StripeConfig,
-  ) { }
+  ) {}
 
   value(): IStripeService {
     return new StripeService(this.stripeConfig);

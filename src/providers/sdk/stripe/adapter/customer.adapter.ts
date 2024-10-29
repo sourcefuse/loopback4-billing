@@ -22,9 +22,9 @@ export class StripeCustomerAdapter implements IAdapter<IStripeCustomer> {
         city: resp.address?.city,
         state: resp.address?.state,
         zip: resp.address?.postal_code,
-        country: resp.address?.country
-      }
-    }
+        country: resp.address?.country,
+      },
+    };
     return res;
   }
   adaptFromModel(data: IStripeCustomer): AnyObject {
@@ -38,27 +38,27 @@ export class StripeCustomerAdapter implements IAdapter<IStripeCustomer> {
         city: data.billingAddress?.city,
         state: data.billingAddress?.state,
         country: data.billingAddress?.country,
-        postal_code: data.billingAddress?.zip
-      }
-    }
+        /* eslint-disable-next-line @typescript-eslint/naming-convention */
+        postal_code: data.billingAddress?.zip,
+      },
+    };
   }
 }
 
-
-function splitName(fullName: string): {firstName: string, lastName: string} {
-  const nameParts = fullName.trim().split(" ");
+function splitName(fullName: string): {firstName: string; lastName: string} {
+  const nameParts = fullName.trim().split(' ');
 
   if (nameParts.length === 1) {
     // If only first name is provided
     return {
       firstName: nameParts[0],
-      lastName: ""
+      lastName: '',
     };
   } else {
     // If both first and last names are provided
     return {
       firstName: nameParts[0],
-      lastName: nameParts.slice(1).join(" ") // Handles multiple middle/last names
+      lastName: nameParts.slice(1).join(' '), // Handles multiple middle/last names
     };
   }
 }

@@ -1,3 +1,4 @@
+/* eslint-disable-next-line @typescript-eslint/naming-convention */
 import {AnyObject} from '@loopback/repository';
 import {IAdapter} from '../../../../types';
 import {IStripeInvoice} from '../type';
@@ -21,11 +22,12 @@ export class StripeInvoiceAdapter implements IAdapter<IStripeInvoice> {
           zip: resp.shipping_details.address.postal_code,
           country: resp.shipping_details.address.country,
           phone: resp.shipping_details.phone,
-          email: resp.customer_email
+          email: resp.customer_email,
         }
         : undefined,
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
       charges: resp.lines?.data.map((lineItem: any) => ({
-        amount: lineItem.amount / 100,          // divided by 100 because the lineItem.amount is coming in cents
+        amount: lineItem.amount / 100, // divided by 100 because the lineItem.amount is coming in cents
         description: lineItem.description,
       })),
       options: {
@@ -34,11 +36,15 @@ export class StripeInvoiceAdapter implements IAdapter<IStripeInvoice> {
     };
   }
   adaptFromModel(data: IStripeInvoice): AnyObject {
-
     const shippingDetails: AnyObject = data.shippingAddress
       ? {
         shipping_details: {
-          name: [data.shippingAddress.firstName, data.shippingAddress.lastName].join(' ').trim(),
+          name: [
+            data.shippingAddress.firstName,
+            data.shippingAddress.lastName,
+          ]
+            .join(' ')
+            .trim(),
           address: {
             line1: data.shippingAddress.line1,
             line2: data.shippingAddress.line2,
@@ -60,4 +66,3 @@ export class StripeInvoiceAdapter implements IAdapter<IStripeInvoice> {
     };
   }
 }
-

@@ -41,19 +41,21 @@ export interface IService {
   getPaymentStatus(invoiceId: string): Promise<boolean>;
 }
 export interface IAdapter<T, R = T> {
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   adaptToModel(resp: any): T;
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   adaptFromModel(data: Partial<R>): any;
 }
 
 export interface Transaction {
   amount?: number; // Optional, in cents, min=0
   paymentMethod:
-  | 'cash'
-  | 'check'
-  | 'bank_transfer'
-  | 'other'
-  | 'custom'
-  | 'payment_source'; // Required
+    | 'cash'
+    | 'check'
+    | 'bank_transfer'
+    | 'other'
+    | 'custom'
+    | 'payment_source'; // Required
   paymentSourceId?: string;
   referenceNumber?: string; // Optional, max 100 chars
   customPaymentMethodId?: string; // Optional, max 50 chars

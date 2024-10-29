@@ -1,9 +1,20 @@
+/* eslint-disable-next-line @typescript-eslint/naming-convention */
 import {inject} from '@loopback/core';
 import Stripe from 'stripe';
 import {TInvoice, Transaction} from '../../../types';
-import {StripeCustomerAdapter, StripeInvoiceAdapter, StripePaymentAdapter} from './adapter';
+import {
+  StripeCustomerAdapter,
+  StripeInvoiceAdapter,
+  StripePaymentAdapter,
+} from './adapter';
 import {StripeBindings} from './key';
-import {IStripeCustomer, IStripeInvoice, IStripePaymentSource, IStripeService, StripeConfig} from './type';
+import {
+  IStripeCustomer,
+  IStripeInvoice,
+  IStripePaymentSource,
+  IStripeService,
+  StripeConfig,
+} from './type';
 export class StripeService implements IStripeService {
   private stripe: Stripe;
   stripeCustomerAdapter: StripeCustomerAdapter;
@@ -23,7 +34,9 @@ export class StripeService implements IStripeService {
   }
 
   async createCustomer(customerDto: IStripeCustomer): Promise<IStripeCustomer> {
-    const customer = await this.stripe.customers.create(this.stripeCustomerAdapter.adaptFromModel(customerDto));
+    const customer = await this.stripe.customers.create(
+      this.stripeCustomerAdapter.adaptFromModel(customerDto),
+    );
     return this.stripeCustomerAdapter.adaptToModel(customer); // Adjust this based on TCustomer interface
   }
 
@@ -32,9 +45,11 @@ export class StripeService implements IStripeService {
     return this.stripeCustomerAdapter.adaptToModel(customer);
   }
 
-  async updateCustomerById(customerId: string, customerDto: Partial<IStripeCustomer>): Promise<void> {
+  async updateCustomerById(
+    customerId: string,
+    customerDto: Partial<IStripeCustomer>,
+  ): Promise<void> {
     const address = {
-
       line1: customerDto.billingAddress?.line1,
       line2: customerDto.billingAddress?.line2,
       city: customerDto.billingAddress?.city,
@@ -46,8 +61,8 @@ export class StripeService implements IStripeService {
       ...(customerDto.email && {email: customerDto.email}),
       ...(customerDto.billingAddress && {address: address}),
       ...(customerDto.phone && {phone: customerDto.phone}),
-      ...(customerDto.options && {options: customerDto.options})
-    }
+      ...(customerDto.options && {options: customerDto.options}),
+    };
     await this.stripe.customers.update(customerId, transformedDto);
   }
 
@@ -55,27 +70,35 @@ export class StripeService implements IStripeService {
     await this.stripe.customers.del(customerId);
   }
 
-  async createPaymentSource(paymentDto: IStripePaymentSource): Promise<IStripePaymentSource> {
+  async createPaymentSource(
+    paymentDto: IStripePaymentSource,
+  ): Promise<IStripePaymentSource> {
     if (!paymentDto.options?.token) {
-      throw new Error("token is not provided");
+      throw new Error('token is not provided');
     }
     const paymentMethod = await this.stripe.paymentMethods.create({
       type: 'card',
       card: {
-        token: paymentDto.options?.token,  // Use the token received from Stripe Elements
+        token: paymentDto.options?.token, // Use the token received from Stripe Elements
       },
     });
 
     // Step 3: Attach the payment method to the customer
-    const paymentRes = await this.stripe.paymentMethods.attach(paymentMethod.id, {
-      customer: paymentDto.customerId,
-    });
+    const paymentRes = await this.stripe.paymentMethods.attach(
+      paymentMethod.id,
+      {
+        customer: paymentDto.customerId,
+      },
+    );
 
     return this.stripePaymentAdapter.adaptToModel(paymentRes);
   }
 
-  async retrievePaymentSource(paymentSourceId: string): Promise<IStripePaymentSource> {
-    const paymentSource = await this.stripe.paymentMethods.retrieve(paymentSourceId);
+  async retrievePaymentSource(
+    paymentSourceId: string,
+  ): Promise<IStripePaymentSource> {
+    const paymentSource =
+      await this.stripe.paymentMethods.retrieve(paymentSourceId);
     return this.stripePaymentAdapter.adaptToModel(paymentSource);
   }
 
@@ -83,17 +106,16 @@ export class StripeService implements IStripeService {
     await this.stripe.paymentMethods.detach(paymentSourceId);
   }
 
-  async applyPaymentSourceForInvoice(invoiceId: string, transaction: Transaction): Promise<IStripeInvoice> {
-
-
+  async applyPaymentSourceForInvoice(
+    invoiceId: string,
+    transaction: Transaction,
+  ): Promise<IStripeInvoice> {
     try {
       if (transaction.paymentMethod !== 'payment_source') {
-
         const invoiceResp = await this.stripe.invoices.pay(invoiceId, {
           paid_out_of_band: true,
         });
         return this.stripeInvoiceAdapter.adaptToModel(invoiceResp);
-
       } else if (
         transaction.paymentMethod === 'payment_source' &&
         !transaction.paymentMethod
@@ -106,21 +128,15 @@ export class StripeService implements IStripeService {
       }
 
       const paidInvoice = await this.stripe.invoices.pay(invoiceId, {
-        payment_method: transaction.paymentSourceId
+        payment_method: transaction.paymentSourceId,
       });
       return this.stripeInvoiceAdapter.adaptToModel(paidInvoice);
-
-
     } catch (error) {
-      console.log(error);
       throw new Error(JSON.stringify(error));
     }
   }
 
-
-
   async createInvoice(invoice: IStripeInvoice): Promise<IStripeInvoice> {
-
     const createdInvoice = await this.stripe.invoices.create({
       customer: invoice.customerId,
       auto_advance: invoice.options?.autoAdvnace ?? false, // Optional
@@ -129,57 +145,70 @@ export class StripeService implements IStripeService {
           city: invoice.shippingAddress?.city,
           country: invoice.shippingAddress?.country,
           line1: invoice.shippingAddress?.line1,
-          line2: invoice.shippingAddress?.line2 + ' ' + invoice.shippingAddress?.line3,
+          line2:
+            invoice.shippingAddress?.line2 +
+            ' ' +
+            invoice.shippingAddress?.line3,
           postal_code: invoice.shippingAddress?.zip,
-          state: invoice.shippingAddress?.state
+          state: invoice.shippingAddress?.state,
         },
-        name: invoice.customerId
-      }
+        name: invoice.customerId,
+      },
     });
     // First, create invoice items for the customer
-    for (const lineItem of invoice.charges ?? []) { // Assuming items is an array in TInvoice
+    for (const lineItem of invoice.charges ?? []) {
+      // Assuming items is an array in TInvoice
       await this.stripe.invoiceItems.create({
         customer: invoice.customerId,
         amount: lineItem.amount,
         currency: invoice.currencyCode,
         description: lineItem.description,
-        invoice: createdInvoice.id
+        invoice: createdInvoice.id,
       });
     }
-    const finalizedInvoice = await this.stripe.invoices.finalizeInvoice(createdInvoice.id);
+    const finalizedInvoice = await this.stripe.invoices.finalizeInvoice(
+      createdInvoice.id,
+    );
 
     return this.stripeInvoiceAdapter.adaptToModel(finalizedInvoice);
   }
   async retrieveInvoice(invoiceId: string): Promise<TInvoice> {
     const invoice = await this.stripe.invoices.retrieve(invoiceId);
     return this.stripeInvoiceAdapter.adaptToModel(invoice);
-
   }
 
-  async updateInvoice(invoiceId: string, invoice: Partial<IStripeInvoice>): Promise<IStripeInvoice> {
+  async updateInvoice(
+    invoiceId: string,
+    invoice: Partial<IStripeInvoice>,
+  ): Promise<IStripeInvoice> {
     // Create the update object conditionally based on which fields are defined
     const updateData: Stripe.InvoiceUpdateParams = {};
 
     if (invoice.shippingAddress) {
       updateData.shipping_details = {
         name: [
-          invoice.shippingAddress.firstName || '', // Avoid 'undefined' in the name
-          invoice.shippingAddress.lastName || ''
-        ].join(' ').trim(), // Trim to avoid extra spaces
+          invoice.shippingAddress.firstName ?? '', // Avoid 'undefined' in the name
+          invoice.shippingAddress.lastName ?? '',
+        ]
+          .join(' ')
+          .trim(), // Trim to avoid extra spaces
         address: {
-          line1: invoice.shippingAddress.line1 || undefined, // Only set if defined
-          line2: invoice.shippingAddress.line2 || undefined,
-          city: invoice.shippingAddress.city || undefined,
-          state: invoice.shippingAddress.state || undefined,
-          postal_code: invoice.shippingAddress.zip || undefined,
-          country: invoice.shippingAddress.country || undefined
+          line1: invoice.shippingAddress.line1 ?? undefined, // Only set if defined
+          line2: invoice.shippingAddress.line2 ?? undefined,
+          city: invoice.shippingAddress.city ?? undefined,
+          state: invoice.shippingAddress.state ?? undefined,
+          postal_code: invoice.shippingAddress.zip ?? undefined,
+          country: invoice.shippingAddress.country ?? undefined,
         },
-        phone: invoice.shippingAddress.phone || undefined // Only set phone if provided
+        phone: invoice.shippingAddress.phone ?? undefined, // Only set phone if provided
       };
     }
 
     // Call the Stripe API with the built update data
-    const updatedInvoice = await this.stripe.invoices.update(invoiceId, updateData);
+    const updatedInvoice = await this.stripe.invoices.update(
+      invoiceId,
+      updateData,
+    );
 
     // Adapt the updated invoice to your model
     return this.stripeInvoiceAdapter.adaptToModel(updatedInvoice);
