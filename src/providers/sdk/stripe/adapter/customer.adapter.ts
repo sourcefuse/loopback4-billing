@@ -2,7 +2,7 @@ import {AnyObject} from '@loopback/repository';
 import {IAdapter} from '../../../../types';
 import {IStripeCustomer} from '../type';
 export class StripeCustomerAdapter implements IAdapter<IStripeCustomer> {
-  constructor() { }
+  constructor() {}
 
   adaptToModel(resp: AnyObject): IStripeCustomer {
     const {firstName, lastName} = splitName(resp.name);
