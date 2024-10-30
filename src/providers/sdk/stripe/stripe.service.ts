@@ -112,6 +112,11 @@ export class StripeService implements IStripeService {
   ): Promise<IStripeInvoice> {
     try {
       if (transaction.paymentMethod !== 'payment_source') {
+        await this.stripe.invoices.update(invoiceId, {
+          metadata: {
+            paymentInfo: transaction.comment ?? 'Paid via bank transfer',
+          },
+        });
         const invoiceResp = await this.stripe.invoices.pay(invoiceId, {
           paid_out_of_band: true,
         });
