@@ -48,14 +48,11 @@ npm install loopback4-billing
    as shown below.
 
 ```ts
-import {BillingComponent, BillingComponentOptions, DEFAULT_BILLING_OPTIONS} from 'billing';
+import {BillingComponent} from 'billing';
 // ...
 export class MyApplication extends BootMixin(ServiceMixin(RepositoryMixin(RestApplication))) {
   constructor(options: ApplicationConfig = {}) {
-    const opts: BillingComponentOptions = DEFAULT_BILLING_OPTIONS;
-    this.configure(BillingComponentBindings.COMPONENT).to(opts);
-      // Put the configuration options here
-    });
+
     this.component(BillingComponent);
     // ...
   }
@@ -63,9 +60,10 @@ export class MyApplication extends BootMixin(ServiceMixin(RepositoryMixin(RestAp
 }
 ```
 
+
 2. Import the BillingComponentBindings and the IService interface from loopback4-billing. Inject the BillingProvider into your controller or service where you need to perform billing operations. Use the methods provided by the BillingProvider to manage billing entities like customers, invoices, and payment sources.
 
-```
+```ts
 import { BillingComponentBindings, IService } from 'loopback4-billing';
 import { inject } from '@loopback/core';
 import { post, requestBody } from '@loopback/rest';
@@ -93,8 +91,7 @@ The loopback4-billing package relies on the configuration of the chosen billing 
 
 ### Step 1: Set Up Billing Provider
 
-#### ChargeBee -
-
+#### For ChargeBee -
 To use Chargebee as the billing provider, you need to configure the Chargebee API keys and site URL in your application. You can set these values in the environment variables of your LoopBack 4 project.
 
 ```
@@ -102,12 +99,8 @@ CHARGEBEE_API_KEY=your_chargebee_api_key
 CHARGEBEE_SITE_URL=your_chargebee_site_url
 ```
 
-### Step 2: Register Billing Component
-
-To use the billing component in your LoopBack 4 application. you need to register it in your application.ts file. And bind the Choosen billing Provider with their respective key. If provider is REST API based then bind it with `BillingComponentBindings.RestProvider`, else if the provider is SDK based bind it with `BillingComponentBindings.SDKProvider`.
-for Chargebee -
-
-```
+after that, bind these values with the ChargeBeeBindings.Config as shown below.
+```ts
 import { BillingComponent } from 'loopback4-billing';
 
 export class YourApplication extends BootMixin(
@@ -116,12 +109,98 @@ export class YourApplication extends BootMixin(
   constructor(options: ApplicationConfig = {}) {
     super(options);
 
-    // Register Billing component
-    this.component(BillingComponent);
+    // Bind the config values
+    this.bind(ChargeBeeBindings.config).to({
+      site: process.env.SITE ?? '',
+      apiKey: process.env.API_KEY ?? '',
+    });
 
+    this.component(BillingComponent);
+    // Other configurations
+  }
+}
+```
+#### For Stripe -
+To use Stripe as the billing provider, you need to configure the Stripe secret Key in your application. You can set these values in the environment variables of your LoopBack 4 project.
+
+```
+STRIPE_SECRET=your_stripe_secret_key
+```
+after that, bind these values with the ChargeBeeBindings.Config as shown below.
+```ts
+import { BillingComponent } from 'loopback4-billing';
+
+export class YourApplication extends BootMixin(
+  ServiceMixin(RepositoryMixin(RestApplication)),
+) {
+  constructor(options: ApplicationConfig = {}) {
+    super(options);
+
+    // Bind the config values
+    this.bind(StripeBindings.config).to({
+      secretKey: process.env.STRIPE_SECRET ?? '',
+    });
+
+    this.component(BillingComponent);
+    // Other configurations
+  }
+}
+```
+
+### Step 2: Register Billing Component
+
+To use the billing component in your LoopBack 4 application. you need to register it in your application.ts file. And bind the Choosen billing Provider with their respective key. If provider is REST API based then bind it with `BillingComponentBindings.RestProvider`, else if the provider is SDK based bind it with `BillingComponentBindings.SDKProvider`.
+#### For ChargeBee -
+as Chargebee is a SDK based provider, so bind it with sdk provider binding.
+
+```ts
+import { BillingComponent } from 'loopback4-billing';
+
+export class YourApplication extends BootMixin(
+  ServiceMixin(RepositoryMixin(RestApplication)),
+) {
+  constructor(options: ApplicationConfig = {}) {
+    super(options);
+
+    this.bind(ChargeBeeBindings.config).to({
+      site: process.env.SITE ?? '',
+      apiKey: process.env.API_KEY ?? '',
+    });
+    // Register Billing component
     this.bind(BillingComponentBindings.SDKProvider).toProvider(
       ChargeBeeServiceProvider,
     );
+
+    this.component(BillingComponent);
+
+
+    // Other configurations
+  }
+}
+```
+
+#### For Stripe -
+as Stripe is a SDK based provider, so bind it with sdk provider binding.
+
+```ts
+import { BillingComponent } from 'loopback4-billing';
+
+export class YourApplication extends BootMixin(
+  ServiceMixin(RepositoryMixin(RestApplication)),
+) {
+  constructor(options: ApplicationConfig = {}) {
+    super(options);
+
+    this.bind(StripeBindings.config).to({
+      secretKey: process.env.STRIPE_SECRET ?? '',
+    });
+    // Register Billing component
+    this.bind(BillingComponentBindings.SDKProvider).toProvider(
+      StripeServiceProvider,
+    );
+
+    this.component(BillingComponent);
+
 
     // Other configurations
   }
@@ -130,7 +209,31 @@ export class YourApplication extends BootMixin(
 
 ### Step 3: Use the Billing Service in Controllers or Services
 
-You can inject the BillingProvider or IService interface into your controller or service and use the billing operations as described earlier.
+You can inject the BillingProvider or IService interface into your controller or service and use the billing operations as described below.
+
+```ts
+import { BillingComponentBindings, IService } from 'loopback4-billing';
+import { inject } from '@loopback/core';
+import { post, requestBody } from '@loopback/rest';
+import { InvoiceDto } from '../models';
+
+export class BillingController {
+  constructor(
+    @inject(BillingComponentBindings.BillingProvider)
+    private readonly billingProvider: IService,
+  ) {}
+
+  @post('/billing/invoice')
+  async createInvoice(
+    @requestBody() invoiceDto: InvoiceDto
+  ): Promise<InvoiceDto> {
+    return this.billingProvider.createInvoice(invoiceDto);
+  }
+}
+
+```
+
+The method of using providers with in controllers and services is going to be same for all type of billing provider integrations provided by Loopback4-billing.
 
 ## Feedback
 
