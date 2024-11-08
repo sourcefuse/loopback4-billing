@@ -32,6 +32,12 @@ The loopback4-billing package is designed to integrate billing functionality int
 
 The package uses a provider pattern to abstract different billing implementations, making it easy to switch between billing services like REST API or SDK-based providers. Currently, the example code focuses on integration with Chargebee.
 
+### Key Features
+**Customer Management**: Create, retrieve, update, and delete customers.
+**Invoice Management**: Create, retrieve, update, and delete invoices.
+**Payment Source Management**: Add, apply, retrieve, and delete payment sources for invoices.
+**Payment Status Tracking**: Check payment status of invoices.
+
 ## Installation
 
 To install loopback4-billing, use `npm`:
@@ -59,9 +65,29 @@ export class MyApplication extends BootMixin(ServiceMixin(RepositoryMixin(RestAp
   // ...
 }
 ```
+2.  **Import Necessary Bindings and Interfaces**
+In your controller or service, import BillingComponentBindings and IService from loopback4-billing.
+
+```ts
+import { BillingComponentBindings, IService } from 'loopback4-billing';
+import { inject } from '@loopback/core';
+```
 
 
-2. Import the BillingComponentBindings and the IService interface from loopback4-billing. Inject the BillingProvider into your controller or service where you need to perform billing operations. Use the methods provided by the BillingProvider to manage billing entities like customers, invoices, and payment sources.
+3. **Inject the BillingProvider into your controller.**
+ Inject the BillingProvider into your controller or service where you need to perform billing operations.
+ ```ts
+ export class BillingController {
+  constructor(
+    @inject(BillingComponentBindings.BillingProvider)
+    private readonly billingProvider: IService,
+  ) {}
+}
+
+ ```
+
+4. **Use BillingProvider Methods for Billing Operations**
+Use the methods provided by the BillingProvider to manage billing entities like customers, invoices, and payment sources.
 
 ```ts
 import { BillingComponentBindings, IService } from 'loopback4-billing';
@@ -85,6 +111,39 @@ export class BillingController {
 
 ```
 
+## IService Interface and Available Methods
+The IService interface defines a comprehensive list of methods to manage billing entities. Below is a summary of each method.
+
+### Customer Management
+* **createCustomer(customerDto: TCustomer): Promise<TCustomer>** - Creates a new customer.
+
+* **getCustomers(customerId: string): Promise<TCustomer>** - Retrieves details of a specific customer by ID.
+
+* **updateCustomerById(customerId: string, customerDto: Partial<TCustomer>): Promise<void>** - Updates details of a specific customer by ID.
+
+* **deleteCustomer(customerId: string): Promise<void>** - Deletes a customer by ID.
+
+### Payment Source Management
+* **createPaymentSource(paymentDto: TPaymentSource): Promise<TPaymentSource>** - Creates a new payment source for the customer.
+
+* **applyPaymentSourceForInvoice(invoiceId: string, transaction: Transaction): Promise<TInvoice>** - Applies an existing payment source to an invoice.
+
+* **retrievePaymentSource(paymentSourceId: string): Promise<TPaymentSource>** - Retrieves details of a specific payment source.
+
+* **deletePaymentSource(paymentSourceId: string): Promise<void>** - Deletes a payment source by ID.
+
+* **getPaymentStatus(invoiceId: string): Promise<boolean>** - Checks the payment status of a specific invoice.
+
+### Invoice Management
+* **createInvoice(invoice: TInvoice): Promise<TInvoice>** - Creates a new invoice.
+
+* **retrieveInvoice(invoiceId: string): Promise<TInvoice>** - Retrieves details of a specific invoice.
+
+* **updateInvoice(invoiceId: string, invoice: Partial<TInvoice>): Promise<TInvoice>** -Updates an existing invoice by ID.
+
+* **deleteInvoice(invoiceId: string): Promise<void>** - Deletes an invoice by ID.
+
+
 ## Configuration
 
 The loopback4-billing package relies on the configuration of the chosen billing provider (e.g., Chargebee). To configure the package for your application, follow the steps below.
@@ -95,8 +154,8 @@ The loopback4-billing package relies on the configuration of the chosen billing 
 To use Chargebee as the billing provider, you need to configure the Chargebee API keys and site URL in your application. You can set these values in the environment variables of your LoopBack 4 project.
 
 ```
-CHARGEBEE_API_KEY=your_chargebee_api_key
-CHARGEBEE_SITE_URL=your_chargebee_site_url
+API_KEY=your_chargebee_api_key
+SITE=your_chargebee_site_url
 ```
 
 after that, bind these values with the ChargeBeeBindings.Config as shown below.
