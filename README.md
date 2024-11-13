@@ -28,9 +28,9 @@
 
 ## Overview
 
-The loopback4-billing package is designed to integrate billing functionality into LoopBack 4 applications. It provides an abstraction layer to work with billing services such as Chargebee, offering common billing operations like creating and managing customers, invoices, payment sources, and transactions.
+The loopback4-billing package is designed to integrate billing functionality into LoopBack 4 applications. It provides an abstraction layer to work with billing services such as Chargebee, Stripe etc, offering common billing operations like creating and managing customers, invoices, payment sources, and transactions.
 
-The package uses a provider pattern to abstract different billing implementations, making it easy to switch between billing services like REST API or SDK-based providers. Currently, the example code focuses on integration with Chargebee.
+The package uses a provider pattern to abstract different billing implementations, making it easy to switch between billing services like REST API or SDK-based providers.
 
 ### Key Features
 **Customer Management**: Create, retrieve, update, and delete customers.
@@ -87,7 +87,7 @@ import { inject } from '@loopback/core';
  ```
 
 4. **Use BillingProvider Methods for Billing Operations**
-Use the methods provided by the BillingProvider to manage billing entities like customers, invoices, and payment sources.
+Use the methods provided by the BillingProvider to manage billing entities like customers, invoices, and payment sources like we have displayed an instance of using BillingProvider for creating a invoice.Similarly you can use all the other methods provided by billing provider.
 
 ```ts
 import { BillingComponentBindings, IService } from 'loopback4-billing';
@@ -115,33 +115,127 @@ export class BillingController {
 The IService interface defines a comprehensive list of methods to manage billing entities. Below is a summary of each method.
 
 ### Customer Management
-* **createCustomer(customerDto: TCustomer): Promise<TCustomer>** - Creates a new customer.
+TCustomer is defined as
+```ts
+export interface TCustomer {
+  id?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  company?: string;
+  billingAddress?: TAddress;
+  phone?: string;
+  options?: Options;
+}
 
-* **getCustomers(customerId: string): Promise<TCustomer>** - Retrieves details of a specific customer by ID.
+export interface TAddress {
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  company?: string;
+  phone?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
+  options?: Options;
+}
+```
+* **createCustomer(customerDto: TCustomer): Promise&lt;TCustomer&gt;** - Creates a new customer.
 
-* **updateCustomerById(customerId: string, customerDto: Partial<TCustomer>): Promise<void>** - Updates details of a specific customer by ID.
+* **getCustomers(customerId: string): Promise&lt;TCustomer&gt;** - Retrieves details of a specific customer by ID.
 
-* **deleteCustomer(customerId: string): Promise<void>** - Deletes a customer by ID.
+* **updateCustomerById(customerId: string, customerDto: Partial&lt;TCustomer&gt;): Promise&lt;void&gt;** - Updates details of a specific customer by ID.
+
+* **deleteCustomer(customerId: string): Promise&lt;void&gt;** - Deletes a customer by ID.
 
 ### Payment Source Management
-* **createPaymentSource(paymentDto: TPaymentSource): Promise<TPaymentSource>** - Creates a new payment source for the customer.
+TpaymentSource is defined as
+```ts
+export interface TPaymentSource {
+  id?: string;
+  customerId: string;
+  card?: ICardDto;
+  options?: Options;
+}
 
-* **applyPaymentSourceForInvoice(invoiceId: string, transaction: Transaction): Promise<TInvoice>** - Applies an existing payment source to an invoice.
+export interface ICardDto {
+  gatewayAccountId: string;
+  number: string;
+  expiryMonth: number;
+  expiryYear: number;
+  cvv: string;
+}
+```
+* **createPaymentSource(paymentDto: TPaymentSource): Promise&lt;TPaymentSource&gt;** - Creates a new payment source for the customer.
 
-* **retrievePaymentSource(paymentSourceId: string): Promise<TPaymentSource>** - Retrieves details of a specific payment source.
+* **applyPaymentSourceForInvoice(invoiceId: string, transaction: Transaction): Promise&lt;TInvoice&gt;** - Applies an existing payment source to an invoice. Transaction defines as
+```ts
+export interface Transaction {
+  amount?: number; // Optional, in cents, min=0
+  paymentMethod:
+    | 'cash'
+    | 'check'
+    | 'bank_transfer'
+    | 'other'
+    | 'custom'
+    | 'payment_source'; // Required
+  paymentSourceId?: string;
+  referenceNumber?: string; // Optional, max 100 chars
+  customPaymentMethodId?: string; // Optional, max 50 chars
+  idAtGateway?: string; // Optional, max 100 chars
+  status?: 'success' | 'failure'; // Optional
+  date?: number; // Optional, timestamp in seconds (UTC)
+  errorCode?: string; // Optional, max 100 chars
+  errorText?: string; // Optional, max 65k chars
+  comment?: string;
+}
+```
+**Example of Transaction:**
+if invoice is not being paid by payment_source.
+```ts
+transaction:Transaction={
+  paymentMethod:'cash',
+  comment:'cash 200 usd - dated 8 Nov 15:49 pm'
+}
+```
+if invoice is being paid by payment_source
+```ts
+transaction:Transaction={
+  paymentMethod:'payment_source',
+  paymentSourceId:'id_XXXXXXX'    // id of payment source
+  comment:'cash 200 usd - dated 8 Nov 15:49 pm'
+}
+```
+* **retrievePaymentSource(paymentSourceId: string): Promise&lt;TPaymentSource&gt;** - Retrieves details of a specific payment source.
 
-* **deletePaymentSource(paymentSourceId: string): Promise<void>** - Deletes a payment source by ID.
+* **deletePaymentSource(paymentSourceId: string): Promise&lt;void&gt;** - Deletes a payment source by ID.
 
-* **getPaymentStatus(invoiceId: string): Promise<boolean>** - Checks the payment status of a specific invoice.
+* **getPaymentStatus(invoiceId: string): Promise&lt;boolean&gt;** - Checks the payment status of a specific invoice. It returns whether the invoice is paid or not.
 
 ### Invoice Management
-* **createInvoice(invoice: TInvoice): Promise<TInvoice>** - Creates a new invoice.
+TInvoice is defined as :
+```ts
+export interface TInvoice {
+  id?: string;
+  customerId: string;
+  shippingAddress?: TAddress;
+  status?: InvoiceStatus;
+  charges?: ICharge[];
+  options?: Options;
+  currencyCode: string;
+}
+```
+* **createInvoice(invoice: TInvoice): Promise&lt;TInvoice&gt;** - Creates a new invoice.
 
-* **retrieveInvoice(invoiceId: string): Promise<TInvoice>** - Retrieves details of a specific invoice.
+* **retrieveInvoice(invoiceId: string): Promise&lt;TInvoice&gt;** - Retrieves details of a specific invoice.
 
-* **updateInvoice(invoiceId: string, invoice: Partial<TInvoice>): Promise<TInvoice>** -Updates an existing invoice by ID.
+* **updateInvoice(invoiceId: string, invoice: Partia&lt;TInvoice&gt;): Promise<TInvoice>** -Updates an existing invoice by ID.
 
-* **deleteInvoice(invoiceId: string): Promise<void>** - Deletes an invoice by ID.
+* **deleteInvoice(invoiceId: string): Promise&lt;void&gt;** - Deletes an invoice by ID.
+
+
 
 
 ## Configuration
