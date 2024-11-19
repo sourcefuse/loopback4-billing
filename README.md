@@ -34,8 +34,11 @@ The package uses a provider pattern to abstract different billing implementation
 
 ### Key Features
 **Customer Management**: Create, retrieve, update, and delete customers.
+
 **Invoice Management**: Create, retrieve, update, and delete invoices.
+
 **Payment Source Management**: Add, apply, retrieve, and delete payment sources for invoices.
+
 **Payment Status Tracking**: Check payment status of invoices.
 
 ## Installation
