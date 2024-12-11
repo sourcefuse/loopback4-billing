@@ -49,7 +49,7 @@
         "@loopback/core": "^6.0.0"
     },
     "dependencies": {
-        "@loopback/rest": "^14.0.0",
+        "@loopback/rest": "^14.0.8",
         "@loopback/rest-explorer": "^7.0.0",
         "chargebee": "^2.38.0",
         "tslib": "^2.6.2"
