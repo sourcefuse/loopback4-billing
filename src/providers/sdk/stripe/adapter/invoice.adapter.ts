@@ -25,11 +25,15 @@ export class StripeInvoiceAdapter implements IAdapter<IStripeInvoice> {
             email: resp.customer_email,
           }
         : undefined,
-      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      charges: resp.lines?.data.map((lineItem: any) => ({
-        amount: lineItem.amount / 100, // divided by 100 because the lineItem.amount is coming in cents
-        description: lineItem.description,
-      })),
+      charges: resp.lines?.data.map(
+        (
+          /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+          lineItem: any, // NOSONAR
+        ) => ({
+          amount: lineItem.amount / 100, // divided by 100 because the lineItem.amount is coming in cents
+          description: lineItem.description,
+        }),
+      ),
       options: {
         autoAdvnace: resp.auto_advance || false,
       },

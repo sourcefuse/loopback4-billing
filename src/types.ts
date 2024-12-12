@@ -42,9 +42,9 @@ export interface IService {
 }
 export interface IAdapter<T, R = T> {
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  adaptToModel(resp: any): T;
+  adaptToModel(resp: any): T; // NOSONAR
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  adaptFromModel(data: Partial<R>): any;
+  adaptFromModel(data: Partial<R>): any; // NOSONAR
 }
 
 export interface Transaction {
