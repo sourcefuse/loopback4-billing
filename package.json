@@ -48,7 +48,7 @@
     "@loopback/core": "^6.0.0"
   },
   "dependencies": {
-    "@loopback/rest": "^14.0.0",
+    "@loopback/rest": "^14.0.9",
     "@loopback/rest-explorer": "^7.0.0",
     "chargebee": "^2.38.0",
     "stripe": "~17.2.0",
