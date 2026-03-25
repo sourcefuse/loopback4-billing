@@ -1,11 +1,23 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import {inject} from '@loopback/core';
 import Stripe from 'stripe';
-import {TInvoice, Transaction} from '../../../types';
+import {
+  CollectionMethod,
+  RecurringInterval,
+  TInvoice,
+  TInvoicePrice,
+  TPrice,
+  TProduct,
+  TSubscriptionCreate,
+  TSubscriptionResult,
+  TSubscriptionUpdate,
+  Transaction,
+} from '../../../types';
 import {
   StripeCustomerAdapter,
   StripeInvoiceAdapter,
   StripePaymentAdapter,
+  StripeSubscriptionAdapter,
 } from './adapter';
 import {StripeBindings} from './key';
 import {
@@ -16,10 +28,15 @@ import {
   StripeConfig,
 } from './type';
 export class StripeService implements IStripeService {
-  private stripe: Stripe;
+  /**
+   * Stripe SDK instance. `protected` to allow subclasses (and test doubles)
+   * to substitute the instance without re-opening the class.
+   */
+  protected stripe: Stripe;
   stripeCustomerAdapter: StripeCustomerAdapter;
   stripeInvoiceAdapter: StripeInvoiceAdapter;
   stripePaymentAdapter: StripePaymentAdapter;
+  stripeSubscriptionAdapter: StripeSubscriptionAdapter;
 
   constructor(
     @inject(StripeBindings.config, {optional: true})
@@ -31,6 +48,7 @@ export class StripeService implements IStripeService {
     this.stripeCustomerAdapter = new StripeCustomerAdapter();
     this.stripeInvoiceAdapter = new StripeInvoiceAdapter();
     this.stripePaymentAdapter = new StripePaymentAdapter();
+    this.stripeSubscriptionAdapter = new StripeSubscriptionAdapter();
   }
 
   async createCustomer(customerDto: IStripeCustomer): Promise<IStripeCustomer> {
@@ -226,5 +244,263 @@ export class StripeService implements IStripeService {
   async getPaymentStatus(invoiceId: string): Promise<boolean> {
     const invoice = await this.stripe.invoices.retrieve(invoiceId);
     return invoice.status === 'paid';
+  }
+
+  // ---------------------------------------------------------------------------
+  // ISubscriptionService implementation
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Creates a new product in Stripe and returns the product's external ID.
+   *
+   * @param product - Product details (name, optional description and metadata).
+   * @returns The Stripe product ID.
+   */
+  async createProduct(product: TProduct): Promise<string> {
+    const created = await this.stripe.products.create({
+      name: product.name,
+      description: product.description,
+      metadata: product.metadata,
+    });
+    return created.id;
+  }
+
+  /**
+   * Creates a recurring price in Stripe and returns the normalised {@link TPrice}.
+   *
+   * @param price - Price configuration including currency, amount and recurrence.
+   * @returns The created price with its Stripe-assigned ID.
+   */
+  async createPrice(price: TPrice): Promise<TPrice> {
+    const created = await this.stripe.prices.create({
+      currency: price.currency,
+      unit_amount: price.unitAmount,
+      product: price.product,
+      recurring: price.recurring
+        ? {
+            interval: price.recurring
+              .interval as Stripe.PriceCreateParams.Recurring.Interval,
+            interval_count: price.recurring.intervalCount,
+          }
+        : undefined,
+      metadata: price.metadata,
+    });
+
+    return {
+      id: created.id,
+      currency: created.currency,
+      unitAmount: created.unit_amount ?? 0,
+      product:
+        typeof created.product === 'string'
+          ? created.product
+          : (created.product?.id ?? ''),
+      recurring: created.recurring
+        ? {
+            interval: created.recurring.interval as RecurringInterval,
+            intervalCount: created.recurring.interval_count,
+          }
+        : undefined,
+      metadata: created.metadata as Record<string, string>,
+      active: created.active,
+    };
+  }
+
+  /**
+   * Creates a new subscription in Stripe.
+   *
+   * Uses `payment_behavior: 'default_incomplete'` so the subscription starts
+   * in an `incomplete` state until the first payment is confirmed, which is
+   * the recommended Stripe pattern for SCA-compliant flows.
+   *
+   * @param subscription - Subscription parameters including customer, price and collection method.
+   * @returns The Stripe subscription ID.
+   */
+  async createSubscription(subscription: TSubscriptionCreate): Promise<string> {
+    const created = await this.stripe.subscriptions.create({
+      customer: subscription.customerId,
+      items: [{price: subscription.priceRefId}],
+      collection_method: subscription.collectionMethod,
+      days_until_due: subscription.daysUntilDue,
+      payment_behavior: (this.stripeConfig.defaultPaymentBehavior ??
+        'default_incomplete') as Stripe.SubscriptionCreateParams.PaymentBehavior,
+    });
+    return created.id;
+  }
+
+  /**
+   * Retrieves the current state of a subscription from Stripe.
+   *
+   * @param subscriptionId - The Stripe subscription ID.
+   * @returns A normalised {@link TSubscriptionResult}.
+   */
+  async getSubscription(subscriptionId: string): Promise<TSubscriptionResult> {
+    const subscription =
+      await this.stripe.subscriptions.retrieve(subscriptionId);
+    return this.stripeSubscriptionAdapter.adaptToModel(subscription);
+  }
+
+  /**
+   * Upgrades or downgrades an existing subscription.
+   *
+   * Handles the edge case where a subscription is still `incomplete` (first
+   * payment not yet confirmed): the incomplete subscription is cancelled and a
+   * fresh one is created so the customer can retry payment.
+   *
+   * For active subscriptions the Stripe proration behaviour is controlled by
+   * {@link TSubscriptionUpdate.prorationBehavior}.
+   *
+   * @param subscriptionId - The Stripe subscription ID to modify.
+   * @param updates - The new price and optional proration behaviour.
+   * @returns A normalised {@link TSubscriptionResult} reflecting the change.
+   */
+  async updateSubscription(
+    subscriptionId: string,
+    updates: TSubscriptionUpdate,
+  ): Promise<TSubscriptionResult> {
+    const existing = await this.stripe.subscriptions.retrieve(subscriptionId);
+
+    if (existing.status === 'incomplete') {
+      // Cancel the incomplete subscription and create a fresh one so the
+      // customer gets a new payment confirmation link.
+      await this.stripe.subscriptions.cancel(subscriptionId);
+      const newId = await this.createSubscription({
+        customerId: existing.customer as string,
+        priceRefId: updates.priceRefId ?? '',
+        collectionMethod: CollectionMethod.CHARGE_AUTOMATICALLY,
+      });
+      return {
+        id: newId,
+        status: 'incomplete',
+        customerId: existing.customer as string,
+      };
+    }
+
+    const priceItemId = existing.items.data[0].id;
+    const updated = await this.stripe.subscriptions.update(subscriptionId, {
+      proration_behavior:
+        updates.prorationBehavior as Stripe.SubscriptionUpdateParams.ProrationBehavior,
+      items: [{id: priceItemId, price: updates.priceRefId}],
+    });
+    return this.stripeSubscriptionAdapter.adaptToModel(updated);
+  }
+
+  /**
+   * Cancels a subscription immediately with proration.
+   *
+   * After cancellation any open invoices are voided and any draft invoices are
+   * finalised then voided, ensuring the customer is not charged for the
+   * remaining period.
+   *
+   * @param subscriptionId - The Stripe subscription ID to cancel.
+   */
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    await this.stripe.subscriptions.cancel(subscriptionId);
+
+    // Best-effort: void any remaining open/draft invoices after cancellation.
+    // Errors here should not fail the cancel response.
+    try {
+      const invoices = await this.stripe.invoices.list({
+        subscription: subscriptionId,
+      });
+
+      await Promise.all(
+        invoices.data.map(async invoice => {
+          if (invoice.status === 'open' && invoice.id) {
+            return this.stripe.invoices.voidInvoice(invoice.id);
+          } else if (invoice.status === 'draft' && invoice.id) {
+            await this.stripe.invoices.finalizeInvoice(invoice.id);
+            return this.stripe.invoices.voidInvoice(invoice.id);
+          } else {
+            return Promise.resolve();
+          }
+        }),
+      );
+    } catch (_err) {
+      // Non-fatal — subscription is already cancelled in Stripe
+    }
+  }
+
+  /**
+   * Pauses a subscription by marking future invoices as uncollectible.
+   * The subscription remains active in Stripe but no charges are attempted.
+   *
+   * @param subscriptionId - The Stripe subscription ID to pause.
+   */
+  async pauseSubscription(subscriptionId: string): Promise<void> {
+    await this.stripe.subscriptions.update(subscriptionId, {
+      pause_collection: {behavior: 'mark_uncollectible'},
+    });
+  }
+
+  /**
+   * Resumes a previously paused subscription by clearing the pause collection.
+   *
+   * @param subscriptionId - The Stripe subscription ID to resume.
+   */
+  async resumeSubscription(subscriptionId: string): Promise<void> {
+    await this.stripe.subscriptions.update(subscriptionId, {
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+      pause_collection: '' as any, // NOSONAR – Stripe uses empty string to clear pause_collection
+    });
+  }
+
+  /**
+   * Returns a detailed price breakdown for an invoice including tax and the
+   * amount excluding tax.
+   *
+   * @param invoiceId - The Stripe invoice ID.
+   * @returns {@link TInvoicePrice} with amounts in the invoice's minor currency unit.
+   */
+  async getInvoicePriceDetails(invoiceId: string): Promise<TInvoicePrice> {
+    const invoice = await this.stripe.invoices.retrieve(invoiceId);
+    const taxAmount =
+      invoice.total_tax_amounts?.reduce((sum, tax) => sum + tax.amount, 0) ?? 0;
+
+    return {
+      currency: invoice.currency.toUpperCase(),
+      totalAmount: invoice.total,
+      taxAmount,
+      amountExcludingTax: invoice.total - taxAmount,
+    };
+  }
+
+  /**
+   * Sends a hosted payment link for the given invoice to the customer's email.
+   *
+   * @param invoiceId - The Stripe invoice ID.
+   */
+  async sendPaymentLink(invoiceId: string): Promise<void> {
+    const invoice = await this.stripe.invoices.retrieve(invoiceId);
+    // sendInvoice is only valid for 'send_invoice' collection method.
+    // For 'charge_automatically' invoices, Stripe handles collection automatically;
+    // finalize the invoice if it is still a draft so it becomes collectable.
+    if (invoice.collection_method !== 'send_invoice') {
+      if (invoice.status === 'draft') {
+        await this.stripe.invoices.finalizeInvoice(invoiceId);
+      }
+      return;
+    }
+    if (invoice.status === 'draft') {
+      await this.stripe.invoices.finalizeInvoice(invoiceId);
+    }
+    await this.stripe.invoices.sendInvoice(invoiceId);
+  }
+
+  /**
+   * Checks whether a product exists in Stripe and is currently active.
+   *
+   * @param productId - The Stripe product ID.
+   * @returns `true` if the product is active, `false` if it is archived or not found.
+   */
+  async checkProductExists(productId: string): Promise<boolean> {
+    try {
+      const product = await this.stripe.products.retrieve(productId);
+      return product.active === true;
+    } catch (error) {
+      if ((error as {code?: string}).code === 'resource_missing') {
+        return false;
+      }
+      throw error;
+    }
   }
 }

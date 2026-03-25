@@ -119,6 +119,174 @@ export type InvoiceStatus =
   | 'voided'
   | 'pending';
 
+// ---------------------------------------------------------------------------
+// Subscription Management Types
+// ---------------------------------------------------------------------------
+
+/**
+ * Supported billing collection methods for recurring subscriptions.
+ */
+export enum CollectionMethod {
+  CHARGE_AUTOMATICALLY = 'charge_automatically',
+  SEND_INVOICE = 'send_invoice',
+}
+
+/**
+ * Supported recurring billing intervals.
+ */
+export enum RecurringInterval {
+  DAY = 'day',
+  WEEK = 'week',
+  MONTH = 'month',
+  YEAR = 'year',
+}
+
+/**
+ * Controls how prorations are calculated when a subscription is updated.
+ */
+export enum ProrationBehavior {
+  CREATE_PRORATIONS = 'create_prorations',
+  NONE = 'none',
+  ALWAYS_INVOICE = 'always_invoice',
+}
+
+/**
+ * Parameters required to create a product in the billing provider.
+ */
+export interface TProduct {
+  name: string;
+  description?: string;
+  metadata?: Record<string, string>;
+}
+
+/**
+ * Provider-agnostic representation of a recurring price / plan.
+ */
+export interface TPrice {
+  id?: string;
+  currency: string;
+  unitAmount: number;
+  /** External product ID that this price belongs to. */
+  product: string;
+  recurring?: {
+    interval: RecurringInterval;
+    intervalCount: number;
+  };
+  metadata?: Record<string, string>;
+  active?: boolean;
+}
+
+/**
+ * Parameters required to create a new subscription.
+ */
+export interface TSubscriptionCreate {
+  customerId: string;
+  /** Price / plan reference ID from the billing provider. */
+  priceRefId: string;
+  collectionMethod: CollectionMethod;
+  /** Number of days after which the invoice is due (applicable for send_invoice). */
+  daysUntilDue?: number;
+}
+
+/**
+ * Parameters allowed when upgrading or downgrading an existing subscription.
+ */
+export interface TSubscriptionUpdate {
+  /** New price / plan reference ID. */
+  priceRefId?: string;
+  prorationBehavior?: ProrationBehavior;
+}
+
+/**
+ * Provider-agnostic subscription result returned after create / update / get.
+ */
+export interface TSubscriptionResult {
+  id: string;
+  status: string;
+  customerId: string;
+  currentPeriodStart?: number;
+  currentPeriodEnd?: number;
+  cancelAtPeriodEnd?: boolean;
+}
+
+/**
+ * Detailed price breakdown of an invoice.
+ */
+export interface TInvoicePrice {
+  currency: string;
+  totalAmount: number;
+  taxAmount: number;
+  amountExcludingTax: number;
+}
+
+/**
+ * Interface that any billing provider must implement to support the full
+ * recurring-subscription lifecycle.
+ *
+ * Keeps subscription concerns separated from one-time billing (IService),
+ * following the Interface Segregation Principle.
+ */
+export interface ISubscriptionService {
+  /**
+   * Creates a product in the billing provider and returns its external ID.
+   */
+  createProduct(product: TProduct): Promise<string>;
+
+  /**
+   * Creates a price (recurring billing configuration) and returns the full price object.
+   */
+  createPrice(price: TPrice): Promise<TPrice>;
+
+  /**
+   * Creates a new recurring subscription and returns its external ID.
+   */
+  createSubscription(subscription: TSubscriptionCreate): Promise<string>;
+
+  /**
+   * Retrieves the current state of a subscription by its external ID.
+   */
+  getSubscription(subscriptionId: string): Promise<TSubscriptionResult>;
+
+  /**
+   * Upgrades or downgrades an active subscription.
+   * Handles the incomplete-subscription edge case automatically.
+   */
+  updateSubscription(
+    subscriptionId: string,
+    updates: TSubscriptionUpdate,
+  ): Promise<TSubscriptionResult>;
+
+  /**
+   * Cancels a subscription immediately with proration and voids open invoices.
+   */
+  cancelSubscription(subscriptionId: string): Promise<void>;
+
+  /**
+   * Pauses a subscription (marks outstanding invoices as uncollectible).
+   */
+  pauseSubscription(subscriptionId: string): Promise<void>;
+
+  /**
+   * Resumes a previously paused subscription.
+   */
+  resumeSubscription(subscriptionId: string): Promise<void>;
+
+  /**
+   * Returns a detailed price breakdown (total, tax, amount excluding tax) for an invoice.
+   */
+  getInvoicePriceDetails(invoiceId: string): Promise<TInvoicePrice>;
+
+  /**
+   * Sends the hosted payment link for a given invoice to the customer.
+   */
+  sendPaymentLink(invoiceId: string): Promise<void>;
+
+  /**
+   * Checks whether a product exists and is still active in the billing provider.
+   */
+  checkProductExists(productId: string): Promise<boolean>;
+}
+
 export const enum ServiceType {
   SDK,
   REST,

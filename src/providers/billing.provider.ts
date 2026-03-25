@@ -99,29 +99,6 @@ export class BillingProvider implements Provider<IService> {
   }
 
   value() {
-    return {
-      createCustomer: async (customerDto: TCustomer) =>
-        this.createCustomer(customerDto),
-      getCustomers: (customerId: string) => this.getCustomers(customerId),
-      updateCustomerById: (tenantId: string, customerDto: Partial<TCustomer>) =>
-        this.updateCustomerById(tenantId, customerDto),
-      deleteCustomer: (customerId: string) => this.deleteCustomer(customerId),
-      createPaymentSource: (paymentDto: TPaymentSource) =>
-        this.createPaymentSource(paymentDto),
-      applyPaymentSourceForInvoice: (
-        invoiceId: string,
-        transaction: Transaction,
-      ) => this.applyPaymentSourceForInvoice(invoiceId, transaction),
-      retrievePaymentSource: (paymentSourceId: string) =>
-        this.retrievePaymentSource(paymentSourceId),
-      deletePaymentSource: (paymentSourceId: string) =>
-        this.deletePaymentSource(paymentSourceId),
-      createInvoice: (invoice: TInvoice) => this.createInvoice(invoice),
-      retrieveInvoice: (invoiceId: string) => this.retrieveInvoice(invoiceId),
-      updateInvoice: (invoiceId: string, invoice: Partial<TInvoice>) =>
-        this.updateInvoice(invoiceId, invoice),
-      deleteInvoice: (invoiceId: string) => this.deleteInvoice(invoiceId),
-      getPaymentStatus: (invoiceId: string) => this.getPaymentStatus(invoiceId),
-    };
+    return this.getProvider();
   }
 }
