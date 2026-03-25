@@ -204,37 +204,35 @@ export class StripeService implements IStripeService {
     invoiceId: string,
     invoice: Partial<IStripeInvoice>,
   ): Promise<IStripeInvoice> {
-    // Create the update object conditionally based on which fields are defined
     const updateData: Stripe.InvoiceUpdateParams = {};
-
     if (invoice.shippingAddress) {
-      updateData.shipping_details = {
-        name: [
-          invoice.shippingAddress.firstName ?? '', // Avoid 'undefined' in the name
-          invoice.shippingAddress.lastName ?? '',
-        ]
-          .join(' ')
-          .trim(), // Trim to avoid extra spaces
-        address: {
-          line1: invoice.shippingAddress.line1 ?? undefined, // Only set if defined
-          line2: invoice.shippingAddress.line2 ?? undefined,
-          city: invoice.shippingAddress.city ?? undefined,
-          state: invoice.shippingAddress.state ?? undefined,
-          postal_code: invoice.shippingAddress.zip ?? undefined,
-          country: invoice.shippingAddress.country ?? undefined,
-        },
-        phone: invoice.shippingAddress.phone ?? undefined, // Only set phone if provided
-      };
+      updateData.shipping_details = this.buildShippingDetails(
+        invoice.shippingAddress,
+      );
     }
-
-    // Call the Stripe API with the built update data
     const updatedInvoice = await this.stripe.invoices.update(
       invoiceId,
       updateData,
     );
-
-    // Adapt the updated invoice to your model
     return this.stripeInvoiceAdapter.adaptToModel(updatedInvoice);
+  }
+
+  private buildShippingDetails(
+    addr: IStripeInvoice['shippingAddress'],
+  ): Stripe.InvoiceUpdateParams.ShippingDetails {
+    const name = [addr?.firstName ?? '', addr?.lastName ?? ''].join(' ').trim();
+    return {
+      name,
+      address: {
+        line1: addr?.line1,
+        line2: addr?.line2,
+        city: addr?.city,
+        state: addr?.state,
+        postal_code: addr?.zip,
+        country: addr?.country,
+      },
+      phone: addr?.phone,
+    };
   }
 
   async deleteInvoice(invoiceId: string): Promise<void> {
@@ -407,16 +405,19 @@ export class StripeService implements IStripeService {
         invoices.data.map(async invoice => {
           if (invoice.status === 'open' && invoice.id) {
             return this.stripe.invoices.voidInvoice(invoice.id);
-          } else if (invoice.status === 'draft' && invoice.id) {
+          }
+          if (invoice.status === 'draft' && invoice.id) {
             await this.stripe.invoices.finalizeInvoice(invoice.id);
             return this.stripe.invoices.voidInvoice(invoice.id);
-          } else {
-            return Promise.resolve();
           }
         }),
       );
-    } catch (_err) {
-      // Non-fatal — subscription is already cancelled in Stripe
+    } catch (err) {
+      // Non-fatal — subscription is already cancelled in Stripe; log for observability
+      console.info(
+        '[StripeService] cancelSubscription: invoice cleanup failed',
+        err,
+      );
     }
   }
 
