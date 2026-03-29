@@ -33,17 +33,19 @@ export class StripeSubscriptionAdapter
    *
    * @param resp - Raw Stripe Subscription returned by the SDK.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adaptToModel(resp: any): TSubscriptionResult {
-    const sub = resp as Stripe.Subscription;
+  adaptToModel(resp: Stripe.Subscription): TSubscriptionResult {
     return {
-      id: sub.id,
-      status: sub.status,
+      id: resp.id,
+      status: resp.status,
       customerId:
-        typeof sub.customer === 'string' ? sub.customer : sub.customer?.id,
-      currentPeriodStart: sub.current_period_start,
-      currentPeriodEnd: sub.current_period_end,
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
+        typeof resp.customer === 'string'
+          ? resp.customer
+          : resp.customer && 'id' in resp.customer
+            ? resp.customer.id
+            : undefined,
+      currentPeriodStart: resp.current_period_start,
+      currentPeriodEnd: resp.current_period_end,
+      cancelAtPeriodEnd: resp.cancel_at_period_end,
     };
   }
 

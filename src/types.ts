@@ -195,6 +195,10 @@ export interface TSubscriptionUpdate {
   /** New price / plan reference ID. */
   priceRefId?: string;
   prorationBehavior?: ProrationBehavior;
+  /** Billing collection method to use when re-creating an incomplete subscription. */
+  collectionMethod?: CollectionMethod;
+  /** Number of days until the invoice is due (applicable for send_invoice). */
+  daysUntilDue?: number;
 }
 
 /**
@@ -203,7 +207,8 @@ export interface TSubscriptionUpdate {
 export interface TSubscriptionResult {
   id: string;
   status: string;
-  customerId: string;
+  /** Optional — customer may be deleted or unexpanded by the provider. */
+  customerId?: string;
   currentPeriodStart?: number;
   currentPeriodEnd?: number;
   cancelAtPeriodEnd?: boolean;
@@ -257,7 +262,9 @@ export interface ISubscriptionService {
   ): Promise<TSubscriptionResult>;
 
   /**
-   * Cancels a subscription immediately with proration and voids open invoices.
+   * Cancels a subscription. Providers may apply proration, credit notes, or
+   * invoice voiding automatically based on their own billing rules.
+   * After this call the subscription will no longer renew.
    */
   cancelSubscription(subscriptionId: string): Promise<void>;
 

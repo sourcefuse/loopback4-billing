@@ -6,6 +6,20 @@ import {
 } from '../../../../types';
 
 /**
+ * Local interface covering the Chargebee Subscription fields we map.
+ * Chargebee does not export a typed subscription object from its SDK,
+ * so we define the shape ourselves — no `any` needed.
+ */
+export interface RawChargebeeSubscription {
+  id: string;
+  status: string;
+  customer_id: string;
+  current_term_start?: number;
+  current_term_end?: number;
+  cancel_at_period_end?: boolean;
+}
+
+/**
  * Adapter that converts between the raw Chargebee Subscription object and the
  * provider-agnostic {@link TSubscriptionResult} shape used throughout the
  * library.
@@ -17,10 +31,9 @@ import {
  * @example
  * ```ts
  * class MyAdapter extends ChargebeeSubscriptionAdapter {
- *   adaptToModel(resp: unknown): TSubscriptionResult {
+ *   adaptToModel(resp: RawChargebeeSubscription & {trial_end?: number}): TSubscriptionResult {
  *     const base = super.adaptToModel(resp);
- *     const raw = resp as {trial_end?: number};
- *     return {...base, trialEnd: raw.trial_end};
+ *     return {...base, trialEnd: resp.trial_end};
  *   }
  * }
  * // then:
@@ -36,9 +49,7 @@ export class ChargebeeSubscriptionAdapter
    *
    * @param resp - Raw Chargebee Subscription returned by the SDK.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adaptToModel(resp: any): TSubscriptionResult {
-    // NOSONAR
+  adaptToModel(resp: RawChargebeeSubscription): TSubscriptionResult {
     return {
       id: resp.id,
       status: resp.status,

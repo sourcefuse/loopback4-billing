@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+import {randomUUID} from 'crypto';
 import {inject} from '@loopback/core';
 import chargebee from 'chargebee';
 import {
-  CollectionMethod,
   RecurringInterval,
   TInvoicePrice,
   TPrice,
@@ -353,8 +353,11 @@ export class ChargeBeeService implements IChargeBeeService {
   async createPrice(price: TPrice): Promise<TPrice> {
     try {
       // Chargebee requires an explicit ItemPrice ID or auto-generates one.
+      // randomUUID() is cryptographically secure (Node.js built-in v14.17+);
+      // the first 8-hex segment keeps the ID short and Chargebee-friendly.
       const priceId =
-        price.id ?? `${price.product}-${price.currency}-${Date.now()}`;
+        price.id ??
+        `${price.product}-${price.currency}-${randomUUID().split('-')[0]}`;
 
       const result = await chargebee.item_price
         .create({
@@ -410,24 +413,10 @@ export class ChargeBeeService implements IChargeBeeService {
    */
   async createSubscription(subscription: TSubscriptionCreate): Promise<string> {
     try {
+      const params =
+        this.chargebeeSubscriptionAdapter.adaptFromModel(subscription);
       const result = await chargebee.subscription
-        .create_with_items(subscription.customerId, {
-          subscription_items: [
-            {
-              item_price_id: subscription.priceRefId,
-            },
-          ],
-          discounts: [], // Required by Chargebee SDK type
-          ...(subscription.collectionMethod === CollectionMethod.SEND_INVOICE
-            ? {
-                auto_collection: 'off' as const,
-                // Only include net_term_days if explicitly provided and site has payment terms configured
-                ...(subscription.daysUntilDue !== undefined
-                  ? {net_term_days: subscription.daysUntilDue}
-                  : {}),
-              }
-            : {auto_collection: 'on' as const}),
-        })
+        .create_with_items(subscription.customerId, params)
         .request();
       return result.subscription.id;
     } catch (error) {
@@ -579,11 +568,7 @@ export class ChargeBeeService implements IChargeBeeService {
       // Using collect_payment without a payment_source triggers Chargebee to
       // send the hosted payment page link to the customer by email
       // (based on site notification settings).
-      await chargebee.invoice
-        .collect_payment(invoiceId, {
-          payment_source_id: undefined,
-        })
-        .request();
+      await chargebee.invoice.collect_payment(invoiceId, {}).request();
     } catch (error) {
       throw new Error(JSON.stringify(error));
     }
@@ -600,15 +585,14 @@ export class ChargeBeeService implements IChargeBeeService {
       const result = await chargebee.item.retrieve(productId).request();
       return result.item.status === 'active';
     } catch (error) {
-      // Chargebee throws a JSON error string with api_error_code for not-found
-      const message = JSON.stringify(error);
+      const cbError = error as {api_error_code?: string; http_status?: number};
       if (
-        message.includes('resource_not_found') ||
-        message.includes('not_found')
+        cbError.api_error_code === 'resource_not_found' ||
+        cbError.http_status === 404
       ) {
         return false;
       }
-      throw new Error(message);
+      throw new Error(JSON.stringify(error));
     }
   }
 }

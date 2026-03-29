@@ -314,11 +314,9 @@ export class StripeService implements IStripeService {
    * @returns The Stripe subscription ID.
    */
   async createSubscription(subscription: TSubscriptionCreate): Promise<string> {
+    const params = this.stripeSubscriptionAdapter.adaptFromModel(subscription);
     const created = await this.stripe.subscriptions.create({
-      customer: subscription.customerId,
-      items: [{price: subscription.priceRefId}],
-      collection_method: subscription.collectionMethod,
-      days_until_due: subscription.daysUntilDue,
+      ...params,
       payment_behavior: (this.stripeConfig.defaultPaymentBehavior ??
         'default_incomplete') as Stripe.SubscriptionCreateParams.PaymentBehavior,
     });
@@ -364,7 +362,9 @@ export class StripeService implements IStripeService {
       const newId = await this.createSubscription({
         customerId: existing.customer as string,
         priceRefId: updates.priceRefId ?? '',
-        collectionMethod: CollectionMethod.CHARGE_AUTOMATICALLY,
+        collectionMethod:
+          updates.collectionMethod ?? CollectionMethod.CHARGE_AUTOMATICALLY,
+        daysUntilDue: updates.daysUntilDue,
       });
       return {
         id: newId,
@@ -413,10 +413,13 @@ export class StripeService implements IStripeService {
         }),
       );
     } catch (err) {
-      // Non-fatal — subscription is already cancelled in Stripe; log for observability
-      console.info(
-        '[StripeService] cancelSubscription: invoice cleanup failed',
-        err,
+      // Invoice cleanup is best-effort after cancellation.
+      // Surface as a structured error so callers and APM tools can observe it.
+      throw Object.assign(
+        new Error(
+          `[StripeService] cancelSubscription: invoice cleanup failed for ${subscriptionId}`,
+        ),
+        {cause: err},
       );
     }
   }
@@ -440,8 +443,12 @@ export class StripeService implements IStripeService {
    */
   async resumeSubscription(subscriptionId: string): Promise<void> {
     await this.stripe.subscriptions.update(subscriptionId, {
-      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-      pause_collection: '' as any, // NOSONAR – Stripe uses empty string to clear pause_collection
+      // Stripe clears pause_collection by passing an empty string.
+      // The SDK types do not model this; cast through unknown to preserve
+      // intent without using any.
+      // Ref: https://stripe.com/docs/billing/subscriptions/pause-payment
+      pause_collection:
+        '' as unknown as Stripe.SubscriptionUpdateParams.PauseCollection,
     });
   }
 
