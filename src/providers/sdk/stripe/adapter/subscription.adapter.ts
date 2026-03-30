@@ -34,15 +34,11 @@ export class StripeSubscriptionAdapter
    * @param resp - Raw Stripe Subscription returned by the SDK.
    */
   adaptToModel(resp: Stripe.Subscription): TSubscriptionResult {
+    const customerId = this.extractCustomerId(resp.customer);
     return {
       id: resp.id,
       status: resp.status,
-      customerId:
-        typeof resp.customer === 'string'
-          ? resp.customer
-          : resp.customer && 'id' in resp.customer
-            ? resp.customer.id
-            : undefined,
+      customerId,
       currentPeriodStart: resp.current_period_start,
       currentPeriodEnd: resp.current_period_end,
       cancelAtPeriodEnd: resp.cancel_at_period_end,
@@ -65,5 +61,24 @@ export class StripeSubscriptionAdapter
         days_until_due: data.daysUntilDue,
       }),
     };
+  }
+
+  /**
+   * Extracts customer ID from Stripe customer field.
+   * Handles string ID, expanded Customer object, and DeletedCustomer edge case.
+   *
+   * @param customer - Stripe customer field (string | Customer | DeletedCustomer)
+   * @returns Customer ID or undefined if customer was deleted
+   */
+  private extractCustomerId(
+    customer: string | Stripe.Customer | Stripe.DeletedCustomer,
+  ): string | undefined {
+    if (typeof customer === 'string') {
+      return customer;
+    }
+    if (customer && 'id' in customer) {
+      return customer.id;
+    }
+    return undefined;
   }
 }

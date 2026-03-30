@@ -36,3 +36,12 @@ export interface ChargeBeeConfig {
    */
   defaultCancelReasonCode?: string;
 }
+
+export type ChargebeePricingModel =
+  | 'flat_fee'
+  | 'per_unit'
+  | 'tiered'
+  | 'volume'
+  | 'stairstep';
+
+export type ChargebeePeriodUnit = 'day' | 'week' | 'month' | 'year';

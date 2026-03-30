@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/naming-convention */
-import {randomUUID} from 'crypto';
+import {randomUUID} from 'node:crypto';
 import {inject} from '@loopback/core';
 import chargebee from 'chargebee';
 import {
@@ -21,6 +21,8 @@ import {
 import {ChargeBeeBindings} from './key';
 import {
   ChargeBeeConfig,
+  ChargebeePeriodUnit,
+  ChargebeePricingModel,
   IChargeBeeCustomer,
   IChargeBeeInvoice,
   IChargeBeePaymentSource,
@@ -310,14 +312,14 @@ export class ChargeBeeService implements IChargeBeeService {
     try {
       const itemId = product.name
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
+        .replaceAll(/[^a-z0-9]+/g, '-')
+        .replaceAll(/^-|-$/g, '');
 
       // Strip item_family_id from metadata — it is a top-level Chargebee param,
       // and Chargebee rejects it if it appears inside metadata.
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const {item_family_id: _ignored, ...restMetadata} = (product.metadata ??
-        {}) as Record<string, unknown>;
+      const {item_family_id: _ignored, ...restMetadata} =
+        product.metadata ?? {};
       const hasExtraMetadata = Object.keys(restMetadata).length > 0;
 
       const result = await chargebee.item
@@ -327,7 +329,7 @@ export class ChargeBeeService implements IChargeBeeService {
           description: product.description,
           type: 'plan',
           item_family_id:
-            (product.metadata?.['item_family_id'] as string) ??
+            product.metadata?.['item_family_id'] ??
             this.chargeBeeConfig.defaultItemFamilyId ??
             'default',
           // Only include metadata key if there are non-family fields to send.
@@ -367,17 +369,9 @@ export class ChargeBeeService implements IChargeBeeService {
           currency_code: price.currency.toUpperCase(),
           price: price.unitAmount,
           pricing_model: (this.chargeBeeConfig.defaultPricingModel ??
-            'flat_fee') as
-            | 'flat_fee'
-            | 'per_unit'
-            | 'tiered'
-            | 'volume'
-            | 'stairstep',
+            'flat_fee') as ChargebeePricingModel,
           period_unit: price.recurring?.interval as
-            | 'day'
-            | 'week'
-            | 'month'
-            | 'year'
+            | ChargebeePeriodUnit
             | undefined,
           period: price.recurring?.intervalCount,
           tax_providers_fields: [], // Required by SDK type but can be empty
@@ -585,10 +579,11 @@ export class ChargeBeeService implements IChargeBeeService {
       const result = await chargebee.item.retrieve(productId).request();
       return result.item.status === 'active';
     } catch (error) {
+      const HTTP_NOT_FOUND = 404;
       const cbError = error as {api_error_code?: string; http_status?: number};
       if (
         cbError.api_error_code === 'resource_not_found' ||
-        cbError.http_status === 404
+        cbError.http_status === HTTP_NOT_FOUND
       ) {
         return false;
       }
