@@ -233,9 +233,9 @@ export class ChargeBeeService implements IChargeBeeService {
             country: invoice.shippingAddress?.country,
           },
           charges: invoice.charges,
-          auto_collection: invoice.options.autoCollection,
+          auto_collection: invoice.options?.autoCollection,
           discounts:
-            invoice.options.discounts?.map(discount => ({
+            invoice.options?.discounts?.map(discount => ({
               ...discount,
               apply_on: discount.applyOn, // Convert to snake_case
             })) ?? [],

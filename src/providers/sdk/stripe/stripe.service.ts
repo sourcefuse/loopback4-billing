@@ -160,24 +160,35 @@ export class StripeService implements IStripeService {
   }
 
   async createInvoice(invoice: IStripeInvoice): Promise<IStripeInvoice> {
-    const createdInvoice = await this.stripe.invoices.create({
+    const addr = invoice.shippingAddress;
+    const shippingName = addr
+      ? [addr.firstName ?? '', addr.lastName ?? ''].join(' ').trim()
+      : '';
+
+    const createParams: Stripe.InvoiceCreateParams = {
       customer: invoice.customerId,
-      auto_advance: invoice.options?.autoAdvnace ?? false, // Optional
-      shipping_details: {
-        address: {
-          city: invoice.shippingAddress?.city,
-          country: invoice.shippingAddress?.country,
-          line1: invoice.shippingAddress?.line1,
-          line2:
-            invoice.shippingAddress?.line2 +
-            ' ' +
-            invoice.shippingAddress?.line3,
-          postal_code: invoice.shippingAddress?.zip,
-          state: invoice.shippingAddress?.state,
-        },
-        name: invoice.customerId,
-      },
-    });
+      auto_advance: invoice.options?.autoAdvance ?? false,
+      ...(addr && shippingName
+        ? {
+            shipping_details: {
+              name: shippingName,
+              address: {
+                city: addr.city,
+                country: addr.country,
+                line1: addr.line1,
+                line2:
+                  [addr.line2, addr.line3].filter(Boolean).join(' ') ||
+                  undefined,
+                postal_code: addr.zip,
+                state: addr.state,
+              },
+              phone: addr.phone,
+            },
+          }
+        : {}),
+    };
+
+    const createdInvoice = await this.stripe.invoices.create(createParams);
     // First, create invoice items for the customer
     for (const lineItem of invoice.charges ?? []) {
       // Assuming items is an array in TInvoice
@@ -206,9 +217,12 @@ export class StripeService implements IStripeService {
   ): Promise<IStripeInvoice> {
     const updateData: Stripe.InvoiceUpdateParams = {};
     if (invoice.shippingAddress) {
-      updateData.shipping_details = this.buildShippingDetails(
+      const shippingDetails = this.buildShippingDetails(
         invoice.shippingAddress,
       );
+      if (shippingDetails) {
+        updateData.shipping_details = shippingDetails;
+      }
     }
     const updatedInvoice = await this.stripe.invoices.update(
       invoiceId,
@@ -219,8 +233,9 @@ export class StripeService implements IStripeService {
 
   private buildShippingDetails(
     addr: IStripeInvoice['shippingAddress'],
-  ): Stripe.InvoiceUpdateParams.ShippingDetails {
+  ): Stripe.InvoiceUpdateParams.ShippingDetails | undefined {
     const name = [addr?.firstName ?? '', addr?.lastName ?? ''].join(' ').trim();
+    if (!name) return undefined;
     return {
       name,
       address: {
