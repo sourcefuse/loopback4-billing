@@ -388,7 +388,14 @@ export class StripeService implements IStripeService {
       };
     }
 
-    const priceItemId = existing.items.data[0].id;
+    const items = existing.items?.data;
+    if (!items || items.length === 0) {
+      throw new Error(
+        `Subscription ${subscriptionId} has no items and cannot be updated`,
+      );
+    }
+
+    const priceItemId = items[0].id;
     const updated = await this.stripe.subscriptions.update(subscriptionId, {
       proration_behavior:
         updates.prorationBehavior as Stripe.SubscriptionUpdateParams.ProrationBehavior,
@@ -429,12 +436,12 @@ export class StripeService implements IStripeService {
       );
     } catch (err) {
       // Invoice cleanup is best-effort after cancellation.
-      // Surface as a structured error so callers and APM tools can observe it.
-      throw Object.assign(
-        new Error(
-          `[StripeService] cancelSubscription: invoice cleanup failed for ${subscriptionId}`,
-        ),
-        {cause: err},
+      // The subscription is already cancelled at this point, so do not
+      // propagate cleanup failures as cancel failures.
+      process.emitWarning(
+        `[StripeService] cancelSubscription: invoice cleanup failed for ${subscriptionId}: ${String(
+          err,
+        )}`,
       );
     }
   }

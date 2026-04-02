@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+import chargebee from 'chargebee';
 import {
   IAdapter,
   TSubscriptionCreate,
@@ -40,9 +41,10 @@ export interface RawChargebeeSubscription {
  * service.chargebeeSubscriptionAdapter = new MyAdapter();
  * ```
  */
-export class ChargebeeSubscriptionAdapter
-  implements IAdapter<TSubscriptionResult, TSubscriptionCreate>
-{
+export class ChargebeeSubscriptionAdapter implements IAdapter<
+  TSubscriptionResult,
+  TSubscriptionCreate
+> {
   /**
    * Maps a raw Chargebee Subscription object to the normalised
    * {@link TSubscriptionResult}.
@@ -66,12 +68,11 @@ export class ChargebeeSubscriptionAdapter
    *
    * @param data - Provider-agnostic subscription creation payload.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adaptFromModel(data: Partial<TSubscriptionCreate>): any {
+  adaptFromModel(
+    data: TSubscriptionCreate,
+  ): Parameters<typeof chargebee.subscription.create_with_items>[1] {
     return {
-      subscription_items: data.priceRefId
-        ? [{item_price_id: data.priceRefId}]
-        : [],
+      subscription_items: [{item_price_id: data.priceRefId}],
       discounts: [],
       ...(data.collectionMethod === 'send_invoice'
         ? {

@@ -1,3 +1,4 @@
+import Stripe from 'stripe';
 export interface StripeConfig {
   secretKey: string;
   /**
@@ -10,5 +11,5 @@ export interface StripeConfig {
    *
    * @see https://stripe.com/docs/api/subscriptions/create#create_subscription-payment_behavior
    */
-  defaultPaymentBehavior?: string;
+  defaultPaymentBehavior?: Stripe.SubscriptionCreateParams.PaymentBehavior;
 }

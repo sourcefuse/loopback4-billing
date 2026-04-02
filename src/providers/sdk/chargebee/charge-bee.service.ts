@@ -38,10 +38,16 @@ export class ChargeBeeService implements IChargeBeeService {
     @inject(ChargeBeeBindings.config, {optional: true})
     private readonly chargeBeeConfig: ChargeBeeConfig,
   ) {
+    if (!chargeBeeConfig) {
+      throw new Error(
+        'ChargeBeeConfig binding is required. Provide a value for ChargeBeeBindings.config.',
+      );
+    }
+
     // Only configure the global chargebee singleton when a valid site is
     // provided. This prevents a second instantiation with empty config
     // (e.g. SDKProvider vs SubscriptionProvider) from resetting the site.
-    if (chargeBeeConfig?.site) {
+    if (chargeBeeConfig.site) {
       chargebee.configure({
         site: chargeBeeConfig.site,
         api_key: chargeBeeConfig.apiKey,
@@ -452,15 +458,28 @@ export class ChargeBeeService implements IChargeBeeService {
     updates: TSubscriptionUpdate,
   ): Promise<TSubscriptionResult> {
     try {
-      const result = await chargebee.subscription
-        .update_for_items(subscriptionId, {
-          subscription_items: updates.priceRefId
-            ? [{item_price_id: updates.priceRefId}]
-            : [],
-          discounts: [], // Required by Chargebee SDK type
+      if (!updates.priceRefId) {
+        const existing = await chargebee.subscription
+          .retrieve(subscriptionId)
+          .request();
+        return this.chargebeeSubscriptionAdapter.adaptToModel(
+          existing.subscription,
+        );
+      }
+
+      const updateParams: Parameters<
+        typeof chargebee.subscription.update_for_items
+      >[1] = {
+        subscription_items: [{item_price_id: updates.priceRefId}],
+        discounts: [],
+        ...(updates.prorationBehavior !== undefined && {
           // When prorationBehavior is 'none', pass prorate:false to suppress credit notes
           prorate: updates.prorationBehavior !== 'none',
-        })
+        }),
+      };
+
+      const result = await chargebee.subscription
+        .update_for_items(subscriptionId, updateParams)
         .request();
       return this.chargebeeSubscriptionAdapter.adaptToModel(
         result.subscription,

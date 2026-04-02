@@ -24,9 +24,10 @@ import {
  * }
  * ```
  */
-export class StripeSubscriptionAdapter
-  implements IAdapter<TSubscriptionResult, TSubscriptionCreate>
-{
+export class StripeSubscriptionAdapter implements IAdapter<
+  TSubscriptionResult,
+  TSubscriptionCreate
+> {
   /**
    * Maps a raw Stripe Subscription object to the normalised
    * {@link TSubscriptionResult}.
@@ -51,11 +52,10 @@ export class StripeSubscriptionAdapter
    *
    * @param data - Provider-agnostic subscription creation payload.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adaptFromModel(data: Partial<TSubscriptionCreate>): any {
+  adaptFromModel(data: TSubscriptionCreate): Stripe.SubscriptionCreateParams {
     return {
       customer: data.customerId,
-      items: data.priceRefId ? [{price: data.priceRefId}] : [],
+      items: [{price: data.priceRefId}],
       collection_method: data.collectionMethod,
       ...(data.daysUntilDue !== undefined && {
         days_until_due: data.daysUntilDue,
