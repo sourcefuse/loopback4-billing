@@ -2,6 +2,7 @@ import {expect, sinon} from '@loopback/testlab';
 import {StripeService} from '../../providers/sdk/stripe/stripe.service';
 import {
   CollectionMethod,
+  PaymentBehavior,
   ProrationBehavior,
   RecurringInterval,
   TPrice,
@@ -253,19 +254,52 @@ describe('StripeService - Subscription Management', () => {
       expect(callArg.collection_method).to.equal(CollectionMethod.SEND_INVOICE);
     });
 
-    it('uses defaultPaymentBehavior from StripeConfig when provided', async () => {
-      // Create a separate service instance with a custom payment behavior so
-      // callers are not forced to use the SCA-default 'default_incomplete'.
+    it('uses per-call paymentBehavior when provided on TSubscriptionCreate', async () => {
+      stripeStub.subscriptions.create.resolves({id: 'sub_custom_003'});
+
+      await service.createSubscription({
+        customerId: 'cus_custom',
+        priceRefId: 'price_abc',
+        collectionMethod: CollectionMethod.CHARGE_AUTOMATICALLY,
+        paymentBehavior: PaymentBehavior.ALLOW_INCOMPLETE,
+      });
+
+      const callArg = stripeStub.subscriptions.create.firstCall.args[0];
+      expect(callArg.payment_behavior).to.equal('allow_incomplete');
+    });
+
+    it('per-call paymentBehavior takes priority over StripeConfig.defaultPaymentBehavior', async () => {
+      // Config says 'error_if_incomplete', but the per-call param overrides it.
+      const customService = new StripeService({
+        secretKey: 'sk_test_dummy',
+        defaultPaymentBehavior: 'error_if_incomplete',
+      });
+      (customService as unknown as {stripe: StubbedStripe}).stripe = stripeStub;
+
+      stripeStub.subscriptions.create.resolves({id: 'sub_override_004'});
+
+      await customService.createSubscription({
+        customerId: 'cus_override',
+        priceRefId: 'price_abc',
+        collectionMethod: CollectionMethod.CHARGE_AUTOMATICALLY,
+        paymentBehavior: PaymentBehavior.ALLOW_INCOMPLETE,
+      });
+
+      const callArg = stripeStub.subscriptions.create.firstCall.args[0];
+      expect(callArg.payment_behavior).to.equal('allow_incomplete');
+    });
+
+    it('falls back to StripeConfig.defaultPaymentBehavior when no per-call value given', async () => {
       const customService = new StripeService({
         secretKey: 'sk_test_dummy',
         defaultPaymentBehavior: 'allow_incomplete',
       });
       (customService as unknown as {stripe: StubbedStripe}).stripe = stripeStub;
 
-      stripeStub.subscriptions.create.resolves({id: 'sub_custom_003'});
+      stripeStub.subscriptions.create.resolves({id: 'sub_config_005'});
 
       await customService.createSubscription({
-        customerId: 'cus_custom',
+        customerId: 'cus_config',
         priceRefId: 'price_abc',
         collectionMethod: CollectionMethod.CHARGE_AUTOMATICALLY,
       });
@@ -274,8 +308,8 @@ describe('StripeService - Subscription Management', () => {
       expect(callArg.payment_behavior).to.equal('allow_incomplete');
     });
 
-    it('falls back to default_incomplete when defaultPaymentBehavior is not configured', async () => {
-      stripeStub.subscriptions.create.resolves({id: 'sub_default_004'});
+    it('falls back to default_incomplete when neither per-call nor config is provided', async () => {
+      stripeStub.subscriptions.create.resolves({id: 'sub_default_006'});
 
       await service.createSubscription({
         customerId: 'cus_fallback',

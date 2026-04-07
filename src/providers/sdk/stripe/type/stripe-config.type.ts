@@ -2,12 +2,13 @@ import Stripe from 'stripe';
 export interface StripeConfig {
   secretKey: string;
   /**
-   * Controls how Stripe handles payment during subscription creation.
-   * Defaults to `'default_incomplete'` (SCA-compliant: subscription starts
-   * incomplete until the first payment is confirmed).
+   * Global fallback for Stripe payment behaviour during subscription creation.
+   * Defaults to `'default_incomplete'` when neither this nor a per-call
+   * `TSubscriptionCreate.paymentBehavior` is provided.
    *
-   * Set to `'allow_incomplete'` or `'error_if_incomplete'` to change the
-   * behaviour for your integration.
+   * Per-call `paymentBehavior` on `TSubscriptionCreate` takes highest priority,
+   * so different subscriptions can use different behaviours without changing
+   * this global setting.
    *
    * @see https://stripe.com/docs/api/subscriptions/create#create_subscription-payment_behavior
    */

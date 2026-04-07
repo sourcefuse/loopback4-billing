@@ -142,6 +142,20 @@ export enum RecurringInterval {
 }
 
 /**
+ * Controls how Stripe handles payment collection during subscription creation.
+ * Pass this per-call on {@link TSubscriptionCreate.paymentBehavior}; falls back
+ * to `StripeConfig.defaultPaymentBehavior`, then `'default_incomplete'`.
+ *
+ * @see https://stripe.com/docs/api/subscriptions/create#create_subscription-payment_behavior
+ */
+export enum PaymentBehavior {
+  DEFAULT_INCOMPLETE = 'default_incomplete',
+  ALLOW_INCOMPLETE = 'allow_incomplete',
+  ERROR_IF_INCOMPLETE = 'error_if_incomplete',
+  PENDING_IF_INCOMPLETE = 'pending_if_incomplete',
+}
+
+/**
  * Controls how prorations are calculated when a subscription is updated.
  */
 export enum ProrationBehavior {
@@ -186,6 +200,12 @@ export interface TSubscriptionCreate {
   collectionMethod: CollectionMethod;
   /** Number of days after which the invoice is due (applicable for send_invoice). */
   daysUntilDue?: number;
+  /**
+   * Stripe-specific: controls payment behaviour during subscription creation.
+   * Takes highest priority over `StripeConfig.defaultPaymentBehavior`.
+   * Ignored by non-Stripe providers.
+   */
+  paymentBehavior?: PaymentBehavior;
 }
 
 /**

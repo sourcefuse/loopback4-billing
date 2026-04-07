@@ -5,7 +5,7 @@ import {IService, ISubscriptionService} from '../../../../types';
  * and recurring-subscription management ({@link ISubscriptionService}).
  *
  * Implementors can bind to {@link BillingComponentBindings.SDKProvider} for
- * one-time billing OR to {@link BillingComponentBindings.SubscriptionProvider}
+ * one-time billing OR to {@link BillingComponentBindings.SDKProvider}
  * for subscription operations, depending on their needs (ISP).
  */
 export interface IStripeService extends IService, ISubscriptionService {}

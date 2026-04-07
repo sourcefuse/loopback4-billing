@@ -332,7 +332,8 @@ export class StripeService implements IStripeService {
     const params = this.stripeSubscriptionAdapter.adaptFromModel(subscription);
     const created = await this.stripe.subscriptions.create({
       ...params,
-      payment_behavior: (this.stripeConfig.defaultPaymentBehavior ??
+      payment_behavior: (subscription.paymentBehavior ??
+        this.stripeConfig.defaultPaymentBehavior ??
         'default_incomplete') as Stripe.SubscriptionCreateParams.PaymentBehavior,
     });
     return created.id;
