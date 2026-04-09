@@ -185,7 +185,7 @@ describe('StripeService - Subscription Management', () => {
       expect(result.product).to.equal('prod_enterprise_123');
       expect(result.recurring?.interval).to.equal(RecurringInterval.MONTH);
       expect(result.recurring?.intervalCount).to.equal(1);
-      expect(result.active).to.be.true();
+      expect(result.active).to.be.true;
     });
 
     it('handles a one-time price (no recurring field)', async () => {
@@ -209,7 +209,7 @@ describe('StripeService - Subscription Management', () => {
 
       const result = await service.createPrice(priceInput);
 
-      expect(result.recurring).to.be.undefined();
+      expect(result.recurring).to.be.undefined;
     });
   });
 
@@ -347,7 +347,7 @@ describe('StripeService - Subscription Management', () => {
       expect(result.customerId).to.equal('cus_tenant_abc');
       expect(result.currentPeriodStart).to.equal(1700000000);
       expect(result.currentPeriodEnd).to.equal(1702592000);
-      expect(result.cancelAtPeriodEnd).to.be.false();
+      expect(result.cancelAtPeriodEnd).to.be.false;
     });
   });
 
@@ -643,7 +643,7 @@ describe('StripeService - Subscription Management', () => {
 
       const result = await service.checkProductExists('prod_active_001');
 
-      expect(result).to.be.true();
+      expect(result).to.be.true;
     });
 
     it('returns false when the product is archived (active: false)', async () => {
@@ -651,7 +651,7 @@ describe('StripeService - Subscription Management', () => {
 
       const result = await service.checkProductExists('prod_archived_002');
 
-      expect(result).to.be.false();
+      expect(result).to.be.false;
     });
 
     it('returns false when Stripe signals resource_missing', async () => {
@@ -662,7 +662,7 @@ describe('StripeService - Subscription Management', () => {
 
       const result = await service.checkProductExists('prod_gone_003');
 
-      expect(result).to.be.false();
+      expect(result).to.be.false;
     });
 
     it('re-throws unexpected errors from Stripe', async () => {

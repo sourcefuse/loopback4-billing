@@ -22,7 +22,6 @@ import {ChargeBeeBindings} from './key';
 import {
   ChargeBeeConfig,
   ChargebeePeriodUnit,
-  ChargebeePricingModel,
   IChargeBeeCustomer,
   IChargeBeeInvoice,
   IChargeBeePaymentSource,
@@ -321,6 +320,13 @@ export class ChargeBeeService implements IChargeBeeService {
         .replaceAll(/[^a-z0-9]+/g, '-')
         .replaceAll(/^-|-$/g, '');
 
+      if (!itemId) {
+        throw new Error(
+          `Cannot derive a valid Chargebee item ID from product name "${product.name}". ` +
+            'The name must contain at least one alphanumeric character.',
+        );
+      }
+
       // Strip item_family_id from metadata — it is a top-level Chargebee param,
       // and Chargebee rejects it if it appears inside metadata.
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -374,8 +380,7 @@ export class ChargeBeeService implements IChargeBeeService {
           item_id: price.product,
           currency_code: price.currency.toUpperCase(),
           price: price.unitAmount,
-          pricing_model: (this.chargeBeeConfig.defaultPricingModel ??
-            'flat_fee') as ChargebeePricingModel,
+          pricing_model: this.chargeBeeConfig.defaultPricingModel ?? 'flat_fee',
           period_unit: price.recurring?.interval as
             | ChargebeePeriodUnit
             | undefined,

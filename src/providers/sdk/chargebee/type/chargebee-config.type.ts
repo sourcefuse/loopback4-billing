@@ -18,9 +18,8 @@ export interface ChargeBeeConfig {
   /**
    * Pricing model applied when creating ItemPrices.
    * Defaults to `'flat_fee'` (single fixed recurring charge).
-   * Other Chargebee values: `'per_unit'`, `'tiered'`, `'volume'`, `'stairstep'`.
    */
-  defaultPricingModel?: string;
+  defaultPricingModel?: ChargebeePricingModel;
 
   /**
    * When `true`, subscriptions are cancelled at the end of the current billing

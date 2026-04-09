@@ -166,7 +166,7 @@ describe('ChargeBeeService - Subscription Management', () => {
       expect(result.product).to.equal('enterprise-plan');
       expect(result.recurring?.interval).to.equal(RecurringInterval.MONTH);
       expect(result.recurring?.intervalCount).to.equal(1);
-      expect(result.active).to.be.true();
+      expect(result.active).to.be.true;
     });
 
     it('returns undefined recurring when no period_unit is set', async () => {
@@ -190,7 +190,7 @@ describe('ChargeBeeService - Subscription Management', () => {
         product: 'setup',
       });
 
-      expect(result.recurring).to.be.undefined();
+      expect(result.recurring).to.be.undefined;
     });
   });
 
@@ -258,7 +258,7 @@ describe('ChargeBeeService - Subscription Management', () => {
       expect(result.customerId).to.equal('cust_tenant_abc');
       expect(result.currentPeriodStart).to.equal(1700000000);
       expect(result.currentPeriodEnd).to.equal(1702592000);
-      expect(result.cancelAtPeriodEnd).to.be.false();
+      expect(result.cancelAtPeriodEnd).to.be.false;
     });
   });
 
@@ -301,7 +301,7 @@ describe('ChargeBeeService - Subscription Management', () => {
 
       const [, params] = updateStub.firstCall.args;
       // ProrationBehavior.NONE -> prorate: false
-      expect(params!.prorate).to.be.false();
+      expect(params!.prorate).to.be.false;
     });
   });
 
@@ -325,7 +325,7 @@ describe('ChargeBeeService - Subscription Management', () => {
         Record<string, unknown>,
       ];
       expect(subId).to.equal('sub_cb_001');
-      expect(params.end_of_term).to.be.false();
+      expect(params.end_of_term).to.be.false;
       expect(params.cancel_reason_code).to.equal('customer_request');
     });
 
@@ -348,7 +348,7 @@ describe('ChargeBeeService - Subscription Management', () => {
         string,
         Record<string, unknown>,
       ];
-      expect(params.end_of_term).to.be.true();
+      expect(params.end_of_term).to.be.true;
       expect(params.cancel_reason_code).to.equal('not_paid');
     });
   });
@@ -453,7 +453,7 @@ describe('ChargeBeeService - Subscription Management', () => {
 
       const result = await service.checkProductExists('enterprise-plan');
 
-      expect(result).to.be.true();
+      expect(result).to.be.true;
     });
 
     it('returns false when the item is archived', async () => {
@@ -463,7 +463,7 @@ describe('ChargeBeeService - Subscription Management', () => {
 
       const result = await service.checkProductExists('old-plan');
 
-      expect(result).to.be.false();
+      expect(result).to.be.false;
     });
 
     it('returns false when Chargebee signals resource_not_found', async () => {
@@ -478,7 +478,7 @@ describe('ChargeBeeService - Subscription Management', () => {
 
       const result = await service.checkProductExists('missing-plan');
 
-      expect(result).to.be.false();
+      expect(result).to.be.false;
     });
 
     it('re-throws unexpected errors from Chargebee', async () => {
