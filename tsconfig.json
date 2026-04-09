@@ -2,6 +2,7 @@
   "$schema": "http://json.schemastore.org/tsconfig",
   "extends": "@loopback/build/config/tsconfig.common.json",
   "compilerOptions": {
+    "lib": ["es2021"],
     "typeRoots": ["./src/typing", "./node_modules/@types"],
     "rootDir": "src",
     "outDir": "dist",

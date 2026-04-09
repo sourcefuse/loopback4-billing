@@ -1,11 +1,27 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+import {randomUUID} from 'node:crypto';
 import {inject} from '@loopback/core';
 import chargebee from 'chargebee';
-import {Transaction} from '../../../types';
-import {CustomerAdapter, InvoiceAdapter, PaymentSourceAdapter} from './adapter';
+import {
+  RecurringInterval,
+  TInvoicePrice,
+  TPrice,
+  TProduct,
+  TSubscriptionCreate,
+  TSubscriptionResult,
+  TSubscriptionUpdate,
+  Transaction,
+} from '../../../types';
+import {
+  CustomerAdapter,
+  InvoiceAdapter,
+  PaymentSourceAdapter,
+  ChargebeeSubscriptionAdapter,
+} from './adapter';
 import {ChargeBeeBindings} from './key';
 import {
   ChargeBeeConfig,
+  ChargebeePeriodUnit,
   IChargeBeeCustomer,
   IChargeBeeInvoice,
   IChargeBeePaymentSource,
@@ -16,18 +32,30 @@ export class ChargeBeeService implements IChargeBeeService {
   invoiceAdapter: InvoiceAdapter;
   customerAdapter: CustomerAdapter;
   paymentSource: PaymentSourceAdapter;
+  chargebeeSubscriptionAdapter: ChargebeeSubscriptionAdapter;
   constructor(
     @inject(ChargeBeeBindings.config, {optional: true})
     private readonly chargeBeeConfig: ChargeBeeConfig,
   ) {
-    // config initialise
-    chargebee.configure({
-      site: chargeBeeConfig.site,
-      api_key: chargeBeeConfig.apiKey,
-    });
+    if (!chargeBeeConfig) {
+      throw new Error(
+        'ChargeBeeConfig binding is required. Provide a value for ChargeBeeBindings.config.',
+      );
+    }
+
+    // Only configure the global chargebee singleton when a valid site is
+    // provided. This prevents a second instantiation with empty config
+    // (e.g. SDKProvider vs SubscriptionProvider) from resetting the site.
+    if (chargeBeeConfig.site) {
+      chargebee.configure({
+        site: chargeBeeConfig.site,
+        api_key: chargeBeeConfig.apiKey,
+      });
+    }
     this.invoiceAdapter = new InvoiceAdapter();
     this.customerAdapter = new CustomerAdapter();
     this.paymentSource = new PaymentSourceAdapter();
+    this.chargebeeSubscriptionAdapter = new ChargebeeSubscriptionAdapter();
   }
   async createCustomer(
     customerDto: IChargeBeeCustomer,
@@ -210,9 +238,9 @@ export class ChargeBeeService implements IChargeBeeService {
             country: invoice.shippingAddress?.country,
           },
           charges: invoice.charges,
-          auto_collection: invoice.options.autoCollection,
+          auto_collection: invoice.options?.autoCollection,
           discounts:
-            invoice.options.discounts?.map(discount => ({
+            invoice.options?.discounts?.map(discount => ({
               ...discount,
               apply_on: discount.applyOn, // Convert to snake_case
             })) ?? [],
@@ -269,6 +297,320 @@ export class ChargeBeeService implements IChargeBeeService {
       const result = await chargebee.invoice.retrieve(invoiceId).request();
       return result.invoice.status === 'paid';
     } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ISubscriptionService implementation (Chargebee Items API v2)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Creates a plan-type Item in Chargebee and returns its Item ID.
+   *
+   * Chargebee's equivalent of a Stripe Product is an `Item` with `type: plan`.
+   *
+   * @param product - Product details (name, optional description and metadata).
+   * @returns The Chargebee Item ID.
+   */
+  async createProduct(product: TProduct): Promise<string> {
+    try {
+      const itemId = product.name
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, '-')
+        .replaceAll(/^-|-$/g, '');
+
+      if (!itemId) {
+        throw new Error(
+          `Cannot derive a valid Chargebee item ID from product name "${product.name}". ` +
+            'The name must contain at least one alphanumeric character.',
+        );
+      }
+
+      // Strip item_family_id from metadata — it is a top-level Chargebee param,
+      // and Chargebee rejects it if it appears inside metadata.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const {item_family_id: _ignored, ...restMetadata} =
+        product.metadata ?? {};
+      const hasExtraMetadata = Object.keys(restMetadata).length > 0;
+
+      const result = await chargebee.item
+        .create({
+          id: itemId,
+          name: product.name,
+          description: product.description,
+          type: 'plan',
+          item_family_id:
+            product.metadata?.['item_family_id'] ??
+            this.chargeBeeConfig.defaultItemFamilyId ??
+            'default',
+          // Only include metadata key if there are non-family fields to send.
+          // Passing metadata: undefined still serialises the key; use spread instead.
+          ...(hasExtraMetadata ? {metadata: restMetadata as object} : {}),
+        })
+        .request();
+      return result.item.id;
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Creates an ItemPrice (recurring price configuration) in Chargebee and
+   * returns the normalised {@link TPrice}.
+   *
+   * Chargebee's equivalent of a Stripe Price is an `ItemPrice`.
+   *
+   * @param price - Price configuration including currency, amount and recurrence.
+   * @returns The created price with its Chargebee-assigned ID.
+   */
+  async createPrice(price: TPrice): Promise<TPrice> {
+    try {
+      // Chargebee requires an explicit ItemPrice ID or auto-generates one.
+      // randomUUID() is cryptographically secure (Node.js built-in v14.17+);
+      // the first 8-hex segment keeps the ID short and Chargebee-friendly.
+      const priceId =
+        price.id ??
+        `${price.product}-${price.currency}-${randomUUID().split('-')[0]}`;
+
+      const result = await chargebee.item_price
+        .create({
+          id: priceId,
+          name: priceId, // Chargebee requires a display name
+          item_id: price.product,
+          currency_code: price.currency.toUpperCase(),
+          price: price.unitAmount,
+          pricing_model: this.chargeBeeConfig.defaultPricingModel ?? 'flat_fee',
+          period_unit: price.recurring?.interval as
+            | ChargebeePeriodUnit
+            | undefined,
+          period: price.recurring?.intervalCount,
+          tax_providers_fields: [], // Required by SDK type but can be empty
+        })
+        .request();
+
+      const ip = result.item_price;
+      return {
+        id: ip.id,
+        currency: ip.currency_code.toLowerCase(),
+        unitAmount: ip.price ?? 0,
+        product: ip.item_id ?? price.product,
+        recurring: ip.period_unit
+          ? {
+              interval: ip.period_unit as RecurringInterval,
+              intervalCount: ip.period ?? 1,
+            }
+          : undefined,
+        active: ip.status === 'active',
+      };
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Creates a new recurring subscription in Chargebee using the Items API.
+   *
+   * Uses `create_with_items` which maps to your `priceRefId` (ItemPrice ID).
+   *
+   * @param subscription - Subscription parameters.
+   * @returns The Chargebee Subscription ID.
+   */
+  async createSubscription(subscription: TSubscriptionCreate): Promise<string> {
+    try {
+      const params =
+        this.chargebeeSubscriptionAdapter.adaptFromModel(subscription);
+      const result = await chargebee.subscription
+        .create_with_items(subscription.customerId, params)
+        .request();
+      return result.subscription.id;
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Retrieves the current state of a subscription from Chargebee.
+   *
+   * @param subscriptionId - The Chargebee subscription ID.
+   * @returns A normalised {@link TSubscriptionResult}.
+   */
+  async getSubscription(subscriptionId: string): Promise<TSubscriptionResult> {
+    try {
+      const result = await chargebee.subscription
+        .retrieve(subscriptionId)
+        .request();
+      return this.chargebeeSubscriptionAdapter.adaptToModel(
+        result.subscription,
+      );
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Upgrades or downgrades an active subscription in Chargebee.
+   *
+   * Uses `update_for_items` which applies immediate proration by default.
+   * Pass `prorationBehavior: 'none'` in `updates` to suppress proration.
+   *
+   * @param subscriptionId - The Chargebee subscription ID to modify.
+   * @param updates - The new ItemPrice ID and optional proration behaviour.
+   * @returns A normalised {@link TSubscriptionResult} reflecting the change.
+   */
+  async updateSubscription(
+    subscriptionId: string,
+    updates: TSubscriptionUpdate,
+  ): Promise<TSubscriptionResult> {
+    try {
+      if (!updates.priceRefId) {
+        const existing = await chargebee.subscription
+          .retrieve(subscriptionId)
+          .request();
+        return this.chargebeeSubscriptionAdapter.adaptToModel(
+          existing.subscription,
+        );
+      }
+
+      const updateParams: Parameters<
+        typeof chargebee.subscription.update_for_items
+      >[1] = {
+        subscription_items: [{item_price_id: updates.priceRefId}],
+        discounts: [],
+        ...(updates.prorationBehavior !== undefined && {
+          // When prorationBehavior is 'none', pass prorate:false to suppress credit notes
+          prorate: updates.prorationBehavior !== 'none',
+        }),
+      };
+
+      const result = await chargebee.subscription
+        .update_for_items(subscriptionId, updateParams)
+        .request();
+      return this.chargebeeSubscriptionAdapter.adaptToModel(
+        result.subscription,
+      );
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Cancels a subscription immediately in Chargebee.
+   *
+   * Sets `end_of_term: false` for immediate cancellation with proration credit
+   * (Chargebee applies a pro-rated credit note automatically).
+   *
+   * @param subscriptionId - The Chargebee subscription ID to cancel.
+   */
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    try {
+      await chargebee.subscription
+        .cancel_for_items(subscriptionId, {
+          end_of_term: this.chargeBeeConfig.cancelAtEndOfTerm ?? false,
+          cancel_reason_code:
+            this.chargeBeeConfig.defaultCancelReasonCode ?? 'customer_request',
+        })
+        .request();
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Pauses a subscription in Chargebee.
+   *
+   * The subscription moves to `paused` state; Chargebee stops generating
+   * invoices until the subscription is resumed.
+   *
+   * @param subscriptionId - The Chargebee subscription ID to pause.
+   */
+  async pauseSubscription(subscriptionId: string): Promise<void> {
+    try {
+      await chargebee.subscription.pause(subscriptionId, {}).request();
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Resumes a previously paused subscription in Chargebee.
+   *
+   * @param subscriptionId - The Chargebee subscription ID to resume.
+   */
+  async resumeSubscription(subscriptionId: string): Promise<void> {
+    try {
+      await chargebee.subscription.resume(subscriptionId, {}).request();
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Returns a detailed price breakdown for a Chargebee invoice including
+   * tax and the amount excluding tax.
+   *
+   * Chargebee stores amounts as units (not cents), so no conversion needed.
+   *
+   * @param invoiceId - The Chargebee invoice ID.
+   * @returns {@link TInvoicePrice} with amounts in the invoice's currency unit.
+   */
+  async getInvoicePriceDetails(invoiceId: string): Promise<TInvoicePrice> {
+    try {
+      const result = await chargebee.invoice.retrieve(invoiceId).request();
+      const inv = result.invoice;
+      const taxAmount: number = inv.tax ?? 0;
+      const totalAmount: number = inv.total ?? 0;
+
+      return {
+        currency: (inv.currency_code ?? '').toUpperCase(),
+        totalAmount,
+        taxAmount,
+        amountExcludingTax: totalAmount - taxAmount,
+      };
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Sends a hosted payment page link for the given Chargebee invoice.
+   *
+   * Uses Chargebee's `collect_payment` with `payment_source_id` omitted,
+   * which results in the payment link being sent via the Chargebee notification
+   * configured on the site.
+   *
+   * @param invoiceId - The Chargebee invoice ID.
+   */
+  async sendPaymentLink(invoiceId: string): Promise<void> {
+    try {
+      // Using collect_payment without a payment_source triggers Chargebee to
+      // send the hosted payment page link to the customer by email
+      // (based on site notification settings).
+      await chargebee.invoice.collect_payment(invoiceId, {}).request();
+    } catch (error) {
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Checks whether a plan-type Item exists and is active in Chargebee.
+   *
+   * @param productId - The Chargebee Item ID.
+   * @returns `true` if the Item is active, `false` if archived or not found.
+   */
+  async checkProductExists(productId: string): Promise<boolean> {
+    try {
+      const result = await chargebee.item.retrieve(productId).request();
+      return result.item.status === 'active';
+    } catch (error) {
+      const HTTP_NOT_FOUND = 404;
+      const cbError = error as {api_error_code?: string; http_status?: number};
+      if (
+        cbError.api_error_code === 'resource_not_found' ||
+        cbError.http_status === HTTP_NOT_FOUND
+      ) {
+        return false;
+      }
       throw new Error(JSON.stringify(error));
     }
   }

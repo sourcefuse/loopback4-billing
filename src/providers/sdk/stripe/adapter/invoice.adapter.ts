@@ -35,7 +35,7 @@ export class StripeInvoiceAdapter implements IAdapter<IStripeInvoice> {
         }),
       ),
       options: {
-        autoAdvnace: resp.auto_advance || false,
+        autoAdvance: resp.auto_advance || false,
       },
     };
   }
@@ -66,7 +66,7 @@ export class StripeInvoiceAdapter implements IAdapter<IStripeInvoice> {
       customer: data.customerId,
       currency: data.currencyCode,
       ...shippingDetails,
-      auto_advance: data.options?.autoAdvnace ?? false,
+      auto_advance: data.options?.autoAdvance ?? false,
     };
   }
 }
