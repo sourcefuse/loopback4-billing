@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+
 import {inject} from '@loopback/core';
 import Stripe from 'stripe';
 import {
   CollectionMethod,
   RecurringInterval,
   TInvoice,
+  TInvoicePdf,
   TInvoicePrice,
   TPrice,
   TProduct,
@@ -530,6 +532,51 @@ export class StripeService implements IStripeService {
     } catch (error) {
       if ((error as {code?: string}).code === 'resource_missing') {
         return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves the PDF download URL for a Stripe invoice.
+   *
+   * Stripe invoices have an `invoice_pdf` field that contains a temporary URL
+   * to download the PDF. This URL is typically valid for a limited time.
+   *
+   * Note: PDF URLs are only available for finalized invoices. Draft invoices
+   * will not have this field.
+   *
+   * @param invoiceId - The Stripe invoice ID
+   * @returns Object containing the PDF URL and generation timestamp
+   * @throws Error if the invoice doesn't exist or PDF URL is not available
+   */
+  async getInvoicePdf(invoiceId: string): Promise<TInvoicePdf> {
+    try {
+      // Retrieve the invoice from Stripe
+      const invoice = await this.stripe.invoices.retrieve(invoiceId);
+
+      // Check if PDF URL is available
+      if (!invoice.invoice_pdf) {
+        throw new Error(
+          `PDF URL not available for invoice ${invoiceId}. ` +
+            `The invoice may be in draft status or not finalized. ` +
+            `Only finalized invoices have PDF URLs.`,
+        );
+      }
+
+      // Return the PDF information
+      return {
+        invoiceId: invoice.id,
+        pdfUrl: invoice.invoice_pdf,
+        generatedAt: Math.floor(Date.now() / 1000), // Current timestamp in seconds
+        // Stripe PDF URLs have expiry but it's not exposed in the API response
+        // The URL is typically valid for a limited time (check Stripe docs)
+      };
+    } catch (error) {
+      // Re-throw with better error message
+      const stripeError = error as {code?: string; message?: string};
+      if (stripeError.code === 'resource_missing') {
+        throw new Error(`Invoice not found: ${invoiceId}`);
       }
       throw error;
     }

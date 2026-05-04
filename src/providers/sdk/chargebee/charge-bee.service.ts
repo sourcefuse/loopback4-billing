@@ -4,6 +4,7 @@ import {inject} from '@loopback/core';
 import chargebee from 'chargebee';
 import {
   RecurringInterval,
+  TInvoicePdf,
   TInvoicePrice,
   TPrice,
   TProduct,
@@ -612,6 +613,58 @@ export class ChargeBeeService implements IChargeBeeService {
         return false;
       }
       throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Retrieves the PDF download URL for a ChargeBee invoice.
+   *
+   * ChargeBee uses the `invoice.pdf()` API to generate a temporary download URL
+   * for the invoice PDF. The URL is typically valid for a limited time.
+   *
+   * @param invoiceId - The ChargeBee invoice ID
+   * @returns Object containing the PDF URL, expiry time, and generation timestamp
+   * @throws Error if the invoice doesn't exist or PDF cannot be generated
+   */
+  async getInvoicePdf(invoiceId: string): Promise<TInvoicePdf> {
+    try {
+      // Call ChargeBee's invoice.pdf() to generate the PDF URL
+      const result = await chargebee.invoice.pdf(invoiceId).request();
+
+      // Check if download URL is available
+      // Type assertion to handle ChargeBee SDK type limitations
+      const download = result.download as {
+        download_url?: string;
+        expires_at?: number;
+      };
+      if (!download?.download_url) {
+        throw new Error(
+          `PDF URL not available for invoice ${invoiceId}. ` +
+            `The invoice may be in an invalid state.`,
+        );
+      }
+
+      // Return the PDF information
+      return {
+        invoiceId: invoiceId,
+        pdfUrl: download.download_url,
+        generatedAt: Math.floor(Date.now() / 1000), // Current timestamp in seconds
+        // ChargeBee provides expiry time for the download URL
+        expiresAt: download.expires_at,
+      };
+    } catch (error) {
+      // Re-throw with better error message
+      const cbError = error as {api_error_code?: string; http_status?: number};
+      const HTTP_NOT_FOUND = 404;
+
+      if (
+        cbError.api_error_code === 'resource_not_found' ||
+        cbError.http_status === HTTP_NOT_FOUND
+      ) {
+        throw new Error(`Invoice not found: ${invoiceId}`);
+      }
+
+      throw error;
     }
   }
 }

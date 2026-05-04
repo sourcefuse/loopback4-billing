@@ -39,6 +39,7 @@ export interface IService {
   ): Promise<TInvoice>;
   deleteInvoice(invoiceId: string): Promise<void>;
   getPaymentStatus(invoiceId: string): Promise<boolean>;
+  getInvoicePdf(invoiceId: string): Promise<TInvoicePdf>;
 }
 export interface IAdapter<T, R = T> {
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -242,6 +243,28 @@ export interface TInvoicePrice {
   totalAmount: number;
   taxAmount: number;
   amountExcludingTax: number;
+}
+
+/**
+ * Represents a PDF download URL for an invoice.
+ *
+ * The PDF URL is typically temporary and expires after a certain period.
+ * The exact expiry duration depends on the billing provider.
+ */
+export interface TInvoicePdf {
+  /** The invoice ID */
+  invoiceId: string;
+  /** The temporary download URL for the PDF */
+  pdfUrl: string;
+  /**
+   * Timestamp (in seconds) when the URL expires, if provided by the provider.
+   * Some providers don't return expiry information.
+   */
+  expiresAt?: number;
+  /**
+   * Timestamp (in seconds) when the PDF was generated/retrieved.
+   */
+  generatedAt: number;
 }
 
 /**
