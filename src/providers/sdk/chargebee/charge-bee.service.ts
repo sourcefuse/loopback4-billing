@@ -5,7 +5,10 @@ import chargebee from 'chargebee';
 import {
   RecurringInterval,
   TInvoicePdf,
+  TInvoicePaymentDetails,
   TInvoicePrice,
+  TPaymentIntent,
+  TPaymentMethod,
   TPrice,
   TProduct,
   TSubscriptionCreate,
@@ -22,7 +25,11 @@ import {
 import {ChargeBeeBindings} from './key';
 import {
   ChargeBeeConfig,
+  ChargebeeCard,
   ChargebeePeriodUnit,
+  ChargebeeCustomer,
+  ChargebeeInvoice,
+  ChargebeePaymentSource,
   IChargeBeeCustomer,
   IChargeBeeInvoice,
   IChargeBeePaymentSource,
@@ -30,6 +37,12 @@ import {
 } from './type';
 
 export class ChargeBeeService implements IChargeBeeService {
+  // Payment method default values
+  private static readonly DEFAULT_EXPIRY_MONTH = 12;
+  private static readonly DEFAULT_EXPIRY_YEAR = 2025;
+  private static readonly DEFAULT_FUNDING_TYPE = 'credit';
+  private static readonly DEFAULT_CARD_BRAND = 'unknown';
+
   invoiceAdapter: InvoiceAdapter;
   customerAdapter: CustomerAdapter;
   paymentSource: PaymentSourceAdapter;
@@ -666,5 +679,395 @@ export class ChargeBeeService implements IChargeBeeService {
 
       throw error;
     }
+  }
+
+  /**
+   * Retrieves payment method details associated with a ChargeBee invoice.
+   *
+   * This method retrieves the invoice, gets the payment source details from the
+   * customer, and returns comprehensive payment information.
+   *
+   * @param invoiceId - The ChargeBee invoice ID
+   * @returns Payment details including method, amount, and status
+   * @throws Error if invoice not found
+   */
+  async getInvoicePaymentDetails(
+    invoiceId: string,
+  ): Promise<TInvoicePaymentDetails> {
+    try {
+      // Retrieve the invoice
+      const result = await chargebee.invoice.retrieve(invoiceId).request();
+      const invoice = result.invoice as ChargebeeInvoice;
+
+      // Get payment method based on invoice state
+      const paymentMethod = await this.getInvoicePaymentMethod(
+        invoice,
+        invoiceId,
+      );
+
+      // Build and return payment details
+      return this.buildPaymentDetails(invoice, invoiceId, paymentMethod);
+    } catch (error) {
+      const cbError = error as {api_error_code?: string; http_status?: number};
+      if (cbError.api_error_code === 'resource_not_found') {
+        throw new Error(`Invoice not found: ${invoiceId}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Extracts customer ID from invoice.
+   *
+   * @param invoice - The ChargeBee invoice
+   * @param invoiceId - Invoice ID for error messages
+   * @returns Customer ID
+   * @throws Error if customer ID not found
+   */
+  private getCustomerIdFromInvoice(
+    invoice: ChargebeeInvoice,
+    invoiceId: string,
+  ): string {
+    const customerId =
+      ((invoice as Record<string, unknown>)['customer_id'] as string) ||
+      invoice.customerId;
+    if (!customerId) {
+      throw new Error(`Customer ID not found for invoice ${invoiceId}`);
+    }
+    return customerId;
+  }
+
+  /**
+   * Retrieves customer payment method for an invoice.
+   *
+   * @param invoice - The ChargeBee invoice
+   * @param invoiceId - Invoice ID for error messages
+   * @returns Payment method details
+   */
+  private async getInvoicePaymentMethod(
+    invoice: ChargebeeInvoice,
+    invoiceId: string,
+  ): Promise<TPaymentMethod> {
+    // Check for linked payments first
+    if (invoice.linkedPayments && invoice.linkedPayments.length > 0) {
+      return this.handleLinkedPayment(invoice, invoiceId);
+    }
+
+    // Fall back to customer's default payment method
+    return this.handleDefaultPaymentMethod(invoice, invoiceId);
+  }
+
+  /**
+   * Handles payment method when invoice has linked payments.
+   *
+   * @param invoice - The ChargeBee invoice
+   * @param invoiceId - Invoice ID for error messages
+   * @returns Payment method details
+   */
+  private async handleLinkedPayment(
+    invoice: ChargebeeInvoice,
+    invoiceId: string,
+  ): Promise<TPaymentMethod> {
+    if (!invoice.linkedPayments || invoice.linkedPayments.length === 0) {
+      throw new Error(`No linked payments found for invoice ${invoiceId}`);
+    }
+
+    const payment = invoice.linkedPayments[0];
+
+    // Check if payment was applied
+    if (payment.appliedAt) {
+      return this.getCustomerPaymentMethod(invoice, invoiceId);
+    }
+
+    // Payment not yet processed
+    return this.createPendingPaymentMethod();
+  }
+
+  /**
+   * Handles customer's default payment method.
+   *
+   * @param invoice - The ChargeBee invoice
+   * @param invoiceId - Invoice ID for error messages
+   * @returns Payment method details
+   */
+  private async handleDefaultPaymentMethod(
+    invoice: ChargebeeInvoice,
+    invoiceId: string,
+  ): Promise<TPaymentMethod> {
+    return this.getCustomerPaymentMethod(invoice, invoiceId);
+  }
+
+  /**
+   * Retrieves payment method from customer.
+   *
+   * @param invoice - The ChargeBee invoice
+   * @param invoiceId - Invoice ID for error messages
+   * @returns Payment method details
+   */
+  private async getCustomerPaymentMethod(
+    invoice: ChargebeeInvoice,
+    invoiceId: string,
+  ): Promise<TPaymentMethod> {
+    const customerId = this.getCustomerIdFromInvoice(invoice, invoiceId);
+    const customerResult = await chargebee.customer
+      .retrieve(customerId)
+      .request();
+    const customer = customerResult.customer as ChargebeeCustomer;
+
+    if (customer.paymentSource) {
+      return this.adaptChargeBeePaymentSource(customer.paymentSource);
+    }
+
+    return this.createUnknownPaymentMethod(
+      'Payment method details not available',
+    );
+  }
+
+  /**
+   * Creates a pending payment method object.
+   *
+   * @returns Payment method with pending status
+   */
+  private createPendingPaymentMethod(): TPaymentMethod {
+    return {
+      type: 'pending',
+      description: 'Payment not yet processed',
+    } as TPaymentMethod;
+  }
+
+  /**
+   * Creates an unknown payment method object.
+   *
+   * @param description - Description for the unknown payment method
+   * @returns Payment method with unknown status
+   */
+  private createUnknownPaymentMethod(description: string): TPaymentMethod {
+    return {
+      type: 'unknown',
+      description,
+    } as TPaymentMethod;
+  }
+
+  /**
+   * Builds payment details response object.
+   *
+   * @param invoice - The ChargeBee invoice
+   * @param invoiceId - Invoice ID for fallback
+   * @param paymentMethod - Payment method details
+   * @returns Formatted payment details
+   */
+  private buildPaymentDetails(
+    invoice: ChargebeeInvoice,
+    invoiceId: string,
+    paymentMethod: TPaymentMethod,
+  ): TInvoicePaymentDetails {
+    const id = invoice.invoiceId ?? invoiceId;
+    return {
+      invoiceId: id,
+      paymentMethod: paymentMethod,
+      paymentDate: invoice.paidAt
+        ? Math.floor(new Date(invoice.paidAt).getTime() / 1000)
+        : undefined,
+      amount: invoice.total,
+      currency: invoice.currencyCode ?? 'USD',
+      status: invoice.status ?? 'unknown',
+      transactionId: id,
+      description: `Payment for invoice ${id}`,
+    };
+  }
+
+  /**
+   * Retrieves a ChargeBee transaction by ID and returns it in PaymentIntent format.
+   *
+   * NOTE: This is a limited implementation that maps ChargeBee transactions to
+   * PaymentIntent format. ChargeBee's transaction model differs significantly from
+   * Stripe's PaymentIntent concept:
+   *
+   * - ChargeBee transactions represent actual payment attempts (not payment flow tracking)
+   * - Transactions are always tied to invoices/subscriptions (cannot be created independently)
+   * - No clientSecret for frontend payment completion
+   * - Limited real-time status tracking (only processing states, not payment flow states)
+   * - ChargeBee uses hosted payment pages instead of direct frontend integration
+   *
+   * @param paymentIntentId - The ChargeBee transaction ID
+   * @returns Payment intent details with ChargeBee transaction data mapped
+   * @throws Error if transaction not found
+   */
+  async getPaymentIntent(paymentIntentId: string): Promise<TPaymentIntent> {
+    try {
+      // Retrieve the transaction from ChargeBee
+      const result = await chargebee.transaction
+        .retrieve(paymentIntentId)
+        .request();
+      const transaction = result.transaction;
+
+      // Get payment method details if payment_source_id is available
+      let paymentMethod: TPaymentMethod | undefined;
+      if (transaction.payment_source_id) {
+        try {
+          const paymentSourceResult = await chargebee.payment_source
+            .retrieve(transaction.payment_source_id)
+            .request();
+          const paymentSource =
+            paymentSourceResult.payment_source as ChargebeePaymentSource;
+          paymentMethod = this.adaptChargeBeePaymentSource(paymentSource);
+        } catch (paymentSourceError) {
+          // If payment source not found, we'll continue without payment method details
+          console.info(
+            `Could not retrieve payment source ${transaction.payment_source_id}:`,
+            paymentSourceError,
+          );
+        }
+      }
+
+      // Map ChargeBee transaction to PaymentIntent format
+      return {
+        id: transaction.id,
+        amount: transaction.amount ?? 0,
+        currency: transaction.currency_code.toLowerCase(),
+        status: this.mapTransactionStatusToPaymentIntentStatus(
+          transaction.status ?? 'in_progress',
+        ),
+        created: transaction.date ?? 0,
+        customer: transaction.customer_id,
+        paymentMethod: paymentMethod,
+        description: `ChargeBee ${transaction.type} transaction`,
+        latestCharge: transaction.id, // In ChargeBee, transaction is the charge
+        clientSecret: undefined, // ChargeBee doesn't have client secret concept
+        amountCapturable: transaction.amount_capturable,
+        captureMethod: 'automatic', // ChargeBee default behavior
+      };
+    } catch (error) {
+      const cbError = error as {api_error_code?: string; http_status?: number};
+      const HTTP_NOT_FOUND = 404;
+
+      if (
+        cbError.api_error_code === 'resource_not_found' ||
+        cbError.http_status === HTTP_NOT_FOUND
+      ) {
+        throw new Error(`Transaction not found: ${paymentIntentId}`);
+      }
+
+      throw new Error(JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Maps ChargeBee transaction status to PaymentIntent status.
+   *
+   * ChargeBee transaction statuses: in_progress, success, voided, failure, timeout, needs_attention, late_failure
+   * PaymentIntent statuses: requires_payment_method, requires_confirmation, requires_action, processing, requires_capture, canceled, succeeded
+   *
+   * @param transactionStatus - ChargeBee transaction status
+   * @returns Corresponding PaymentIntent status
+   */
+  private mapTransactionStatusToPaymentIntentStatus(
+    transactionStatus: string,
+  ): string {
+    const statusMap: Record<string, string> = {
+      in_progress: 'processing',
+      success: 'succeeded',
+      voided: 'canceled',
+      failure: 'canceled',
+      timeout: 'canceled',
+      needs_attention: 'requires_action',
+      late_failure: 'canceled',
+    };
+    return statusMap[transactionStatus] || 'requires_payment_method';
+  }
+
+  /**
+   * Adapts a ChargeBee payment source to the generic TPaymentMethod format.
+   */
+  private adaptChargeBeePaymentSource(
+    source: ChargebeePaymentSource,
+  ): TPaymentMethod {
+    if (source.type === 'card' && source.card) {
+      return this.createCardPaymentMethod(source, source.card);
+    }
+
+    return this.createGenericPaymentMethod(source);
+  }
+
+  /**
+   * Creates a card payment method from ChargeBee payment source.
+   *
+   * @param source - The ChargeBee payment source
+   * @param card - The card details (guaranteed to be defined when called)
+   * @returns Card payment method
+   */
+  private createCardPaymentMethod(
+    source: ChargebeePaymentSource,
+    card: ChargebeeCard,
+  ): TPaymentMethod {
+    return {
+      type: 'card',
+      id: source.id ?? '',
+      customer: source.customerId,
+      card: this.buildCardDetails(card),
+    };
+  }
+
+  /**
+   * Builds card details object from ChargeBee card data.
+   *
+   * @param card - ChargeBee card information
+   * @returns Formatted card details
+   */
+  private buildCardDetails(card: ChargebeeCard): {
+    brand: string;
+    last4: string;
+    expMonth: number;
+    expYear: number;
+    funding: string;
+  } {
+    return {
+      brand: this.getCardBrand(card),
+      last4: card.last4 ?? '****',
+      expMonth: card.expiryMonth ?? ChargeBeeService.DEFAULT_EXPIRY_MONTH,
+      expYear: card.expiryYear ?? ChargeBeeService.DEFAULT_EXPIRY_YEAR,
+      funding: card.funding ?? ChargeBeeService.DEFAULT_FUNDING_TYPE,
+    };
+  }
+
+  /**
+   * Gets card brand from first six digits.
+   *
+   * @param card - ChargeBee card information
+   * @returns Card brand
+   */
+  private getCardBrand(card: ChargebeeCard): string {
+    if (card.firstSixDigits) {
+      return this.detectCardBrand(card.firstSixDigits);
+    }
+    return ChargeBeeService.DEFAULT_CARD_BRAND;
+  }
+
+  /**
+   * Creates a generic payment method for non-card payment sources.
+   *
+   * @param source - The ChargeBee payment source
+   * @returns Generic payment method
+   */
+  private createGenericPaymentMethod(
+    source: ChargebeePaymentSource,
+  ): TPaymentMethod {
+    return {
+      type: source.type ?? 'unknown',
+      id: source.id ?? '',
+      customer: source.customerId,
+    };
+  }
+
+  /**
+   * Detects card brand from first six digits.
+   */
+  private detectCardBrand(firstSix: string): string {
+    // Simple card brand detection
+    if (firstSix.startsWith('4')) return 'visa';
+    if (firstSix.startsWith('5') || firstSix.startsWith('2'))
+      return 'mastercard';
+    if (firstSix.startsWith('3')) return 'amex';
+    return 'unknown';
   }
 }

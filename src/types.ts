@@ -40,6 +40,8 @@ export interface IService {
   deleteInvoice(invoiceId: string): Promise<void>;
   getPaymentStatus(invoiceId: string): Promise<boolean>;
   getInvoicePdf(invoiceId: string): Promise<TInvoicePdf>;
+  getInvoicePaymentDetails(invoiceId: string): Promise<TInvoicePaymentDetails>;
+  getPaymentIntent(paymentIntentId: string): Promise<TPaymentIntent>;
 }
 export interface IAdapter<T, R = T> {
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -265,6 +267,130 @@ export interface TInvoicePdf {
    * Timestamp (in seconds) when the PDF was generated/retrieved.
    */
   generatedAt: number;
+}
+
+/**
+ * Represents payment method details (card, bank account, etc.)
+ */
+export interface TPaymentMethod {
+  /** Payment method type: card, bank_account, etc. */
+  type: string;
+
+  /** Card details (if type is card) */
+  card?: {
+    /** Card brand: visa, mastercard, amex, etc. */
+    brand: string;
+    /** Last 4 digits */
+    last4: string;
+    /** Expiration month */
+    expMonth: number;
+    /** Expiration year */
+    expYear: number;
+    /** Funding type: credit, debit, prepaid, unknown */
+    funding: string;
+    /** Country code */
+    country?: string;
+  };
+
+  /** Bank account details (if type is bank_account) */
+  bankAccount?: {
+    /** Bank name */
+    bankName: string;
+    /** Last 4 digits */
+    last4: string;
+    /** Routing number */
+    routingNumber?: string;
+    /** Account type: checking, savings */
+    accountType?: string;
+  };
+
+  /** Customer ID */
+  customer?: string;
+
+  /** Payment method ID at provider */
+  id?: string;
+}
+
+/**
+ * Complete payment details for an invoice
+ */
+export interface TInvoicePaymentDetails {
+  /** Invoice ID */
+  invoiceId: string;
+
+  /** Payment method information */
+  paymentMethod: TPaymentMethod;
+
+  /** Payment date (timestamp in seconds) */
+  paymentDate?: number;
+
+  /** Payment amount (in minor units) */
+  amount?: number;
+
+  /** Currency code */
+  currency?: string;
+
+  /** Payment status */
+  status?: string;
+
+  /** Transaction ID */
+  transactionId?: string;
+
+  /** Payment description */
+  description?: string;
+}
+
+/**
+ * Represents a payment intent for tracking payment flow
+ */
+export interface TPaymentIntent {
+  /** Payment intent ID */
+  id: string;
+
+  /** Payment amount (in minor units) */
+  amount: number;
+
+  /** Currency code */
+  currency: string;
+
+  /**
+   * Payment status:
+   * - requires_payment_method
+   * - requires_confirmation
+   * - requires_action
+   * - processing
+   * - requires_capture
+   * - canceled
+   * - succeeded
+   */
+  status: string;
+
+  /** Creation timestamp (seconds) */
+  created: number;
+
+  /** Customer ID */
+  customer?: string;
+
+  /** Payment method details */
+  paymentMethod?: TPaymentMethod;
+
+  /** Payment description */
+  description?: string;
+
+  /** Metadata key-value pairs */
+  metadata?: Record<string, string>;
+
+  /** Latest charge ID */
+  latestCharge?: string;
+
+  /** Client secret for client-side confirmation */
+  clientSecret?: string;
+
+  /** Amount captured (if applicable) */
+  amountCapturable?: number;
+
+  /** Capture method: automatic or manual */
+  captureMethod?: string;
 }
 
 /**

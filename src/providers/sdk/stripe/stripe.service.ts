@@ -7,7 +7,10 @@ import {
   RecurringInterval,
   TInvoice,
   TInvoicePdf,
+  TInvoicePaymentDetails,
   TInvoicePrice,
+  TPaymentIntent,
+  TPaymentMethod,
   TPrice,
   TProduct,
   TSubscriptionCreate,
@@ -28,8 +31,15 @@ import {
   IStripePaymentSource,
   IStripeService,
   StripeConfig,
+  StripeLegacySource,
 } from './type';
 export class StripeService implements IStripeService {
+  // Payment method default values
+  private static readonly DEFAULT_EXPIRY_MONTH = 12;
+  private static readonly DEFAULT_EXPIRY_YEAR = 2025;
+  private static readonly DEFAULT_FUNDING_TYPE = 'credit';
+  private static readonly DEFAULT_CARD_BRAND = 'unknown';
+
   /**
    * Stripe SDK instance. `protected` to allow subclasses (and test doubles)
    * to substitute the instance without re-opening the class.
@@ -580,5 +590,189 @@ export class StripeService implements IStripeService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Retrieves payment method details associated with a Stripe invoice.
+   *
+   * This method retrieves the invoice, expands to get the charge and payment
+   * method details, and returns comprehensive payment information.
+   *
+   * @param invoiceId - The Stripe invoice ID
+   * @returns Payment details including method, amount, and status
+   * @throws Error if invoice not found or no payment available
+   */
+  async getInvoicePaymentDetails(
+    invoiceId: string,
+  ): Promise<TInvoicePaymentDetails> {
+    try {
+      // Retrieve the invoice with expanded charge and payment method
+      const invoice = await this.stripe.invoices.retrieve(invoiceId, {
+        expand: ['charge', 'default_payment_method'],
+      });
+
+      // Check if invoice has a charge
+      if (!invoice.charge) {
+        throw new Error(
+          `No payment found for invoice ${invoiceId}. The invoice may not be paid yet.`,
+        );
+      }
+
+      const charge = invoice.charge as Stripe.Charge;
+
+      // Get payment method details
+      let paymentMethod: TPaymentMethod;
+
+      if (charge.payment_method) {
+        // Retrieve the payment method
+        const pm = await this.stripe.paymentMethods.retrieve(
+          charge.payment_method as string,
+        );
+        paymentMethod = this.adaptPaymentMethod(pm);
+      } else if (charge.source) {
+        // Legacy source-based payment
+        const source = charge.source as unknown as StripeLegacySource;
+        paymentMethod = this.adaptSource(source);
+      } else {
+        throw new Error('No payment method information available');
+      }
+
+      return {
+        invoiceId: invoice.id,
+        paymentMethod: paymentMethod,
+        paymentDate: invoice.status_transitions?.paid_at ?? undefined,
+        amount: charge.amount,
+        currency: charge.currency,
+        status: charge.status,
+        transactionId: charge.id,
+        description: charge.description ?? undefined,
+      };
+    } catch (error) {
+      const stripeError = error as {code?: string; message?: string};
+      if (stripeError.code === 'resource_missing') {
+        throw new Error(`Invoice not found: ${invoiceId}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves a Stripe payment intent by ID.
+   *
+   * Payment intents represent the payment flow from initiation to completion.
+   * This method returns comprehensive payment tracking information.
+   *
+   * @param paymentIntentId - The Stripe payment intent ID
+   * @returns Payment intent details including status, amount, and method
+   * @throws Error if payment intent not found
+   */
+  async getPaymentIntent(paymentIntentId: string): Promise<TPaymentIntent> {
+    try {
+      // Retrieve the payment intent with expanded payment method
+      const paymentIntent = await this.stripe.paymentIntents.retrieve(
+        paymentIntentId,
+        {
+          expand: ['payment_method', 'latest_charge'],
+        },
+      );
+
+      // Adapt payment method if available
+      let paymentMethod: TPaymentMethod | undefined;
+      if (paymentIntent.payment_method) {
+        if (typeof paymentIntent.payment_method === 'string') {
+          // If it's just an ID, retrieve the full payment method
+          const pm = await this.stripe.paymentMethods.retrieve(
+            paymentIntent.payment_method,
+          );
+          paymentMethod = this.adaptPaymentMethod(pm);
+        } else {
+          // Already expanded
+          paymentMethod = this.adaptPaymentMethod(
+            paymentIntent.payment_method as Stripe.PaymentMethod,
+          );
+        }
+      }
+
+      return {
+        id: paymentIntent.id,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        status: paymentIntent.status,
+        created: paymentIntent.created,
+        customer: (paymentIntent.customer as string) ?? undefined,
+        paymentMethod: paymentMethod,
+        description: paymentIntent.description ?? undefined,
+        metadata: paymentIntent.metadata as Record<string, string>,
+        latestCharge: (paymentIntent.latest_charge as string) ?? undefined,
+        clientSecret: paymentIntent.client_secret ?? undefined,
+        amountCapturable: paymentIntent.amount_capturable,
+        captureMethod: paymentIntent.capture_method,
+      };
+    } catch (error) {
+      const stripeError = error as {code?: string; message?: string};
+      if (stripeError.code === 'resource_missing') {
+        throw new Error(`Payment intent not found: ${paymentIntentId}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Adapts a Stripe PaymentMethod to the generic TPaymentMethod format.
+   */
+  private adaptPaymentMethod(pm: Stripe.PaymentMethod): TPaymentMethod {
+    if (pm.type === 'card') {
+      return {
+        type: 'card',
+        id: pm.id,
+        customer: pm.customer as string,
+        card: {
+          brand: pm.card!.brand,
+          last4: pm.card!.last4,
+          expMonth: pm.card!.exp_month,
+          expYear: pm.card!.exp_year,
+          funding: pm.card!.funding,
+          country: pm.card!.country ?? undefined,
+        },
+      };
+    }
+
+    // Handle other payment method types as needed
+    return {
+      type: pm.type,
+      id: pm.id,
+      customer: pm.customer as string,
+    };
+  }
+
+  /**
+   * Adapts a legacy Stripe Source to the generic TPaymentMethod format.
+   */
+  private adaptSource(source: StripeLegacySource): TPaymentMethod {
+    if (source.type === 'card' && source.card) {
+      const card = source.card as {
+        brand: string;
+        last4: string;
+        expMonth: number;
+        expYear: number;
+        funding: string;
+      };
+      return {
+        type: 'card',
+        id: source.id,
+        card: {
+          brand: card.brand || StripeService.DEFAULT_CARD_BRAND,
+          last4: card.last4 || '****',
+          expMonth: card.expMonth || StripeService.DEFAULT_EXPIRY_MONTH,
+          expYear: card.expYear || StripeService.DEFAULT_EXPIRY_YEAR,
+          funding: card.funding || StripeService.DEFAULT_FUNDING_TYPE,
+        },
+      };
+    }
+
+    return {
+      type: source.type ?? 'unknown',
+      id: source.id,
+    };
   }
 }

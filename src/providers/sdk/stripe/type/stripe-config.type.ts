@@ -14,3 +14,23 @@ export interface StripeConfig {
    */
   defaultPaymentBehavior?: Stripe.SubscriptionCreateParams.PaymentBehavior;
 }
+
+/**
+ * Stripe legacy Source object structure (for card-based payments)
+ * Made more flexible to handle Stripe's CustomerSource union type
+ */
+export type StripeLegacySource = {
+  id: string;
+  type?: string;
+  object?: string;
+  card?: {
+    brand?: string;
+    last4?: string;
+    expMonth?: number;
+    expYear?: number;
+    funding?: string;
+  };
+  customer?: string;
+  metadata?: Record<string, string>;
+  [key: string]: unknown;
+};
