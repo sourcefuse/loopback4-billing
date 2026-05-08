@@ -3,9 +3,8 @@ import {
   TInvoicePaymentDetails,
   TPaymentMethod,
 } from '../../../../types';
-import {ChargebeeInvoice} from '../type';
+import {ChargebeeInvoice, ICharge, IChargeBeeInvoice, IDiscount} from '../type';
 import {AnyObject} from '@loopback/repository';
-import {ICharge, IChargeBeeInvoice, IDiscount} from '../type';
 export class InvoiceAdapter {
   constructor() {}
 
@@ -56,9 +55,11 @@ export class InvoiceAdapter {
     download: Record<string, unknown>,
     invoiceId: string,
   ): TInvoicePdf {
+    const downloadUrl = download['download_url'];
+    const pdfUrl = typeof downloadUrl === 'string' ? downloadUrl : '';
     return {
       invoiceId: invoiceId,
-      pdfUrl: String(download['download_url'] ?? ''),
+      pdfUrl: pdfUrl,
       generatedAt: Math.floor(Date.now() / 1000), // Current timestamp in seconds
       expiresAt: download['expires_at'] as number | undefined,
     };

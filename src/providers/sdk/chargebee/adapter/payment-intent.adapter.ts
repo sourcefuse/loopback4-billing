@@ -25,35 +25,20 @@ export class ChargebeePaymentIntentAdapter {
     transaction: ChargebeeTransaction,
     paymentMethod?: TPaymentMethod,
   ): TPaymentIntent {
-    const currencyCode =
-      ((transaction as Record<string, unknown>)['currency_code'] as
-        | string
-        | undefined) ??
-      transaction.currencyCode ??
-      'usd';
-    const customerId =
-      ((transaction as Record<string, unknown>)['customer_id'] as
-        | string
-        | undefined) ?? transaction.customerId;
-    const amountCapturable = (transaction as Record<string, unknown>)[
-      'amount_capturable'
-    ] as number | undefined;
-    const transactionType =
-      ((transaction as Record<string, unknown>)['type'] as
-        | string
-        | undefined) ?? 'transaction';
+    const currencyCode = this.extractCurrencyCode(transaction);
+    const customerId = this.extractCustomerId(transaction);
+    const amountCapturable = this.extractAmountCapturable(transaction);
+    const transactionType = this.extractTransactionType(transaction);
+    const created = this.extractCreatedTimestamp(transaction);
 
     return {
       id: transaction.id ?? '',
       amount: transaction.amount ?? 0,
-      currency: String(currencyCode).toLowerCase(),
+      currency: currencyCode.toLowerCase(),
       status: this.mapTransactionStatusToPaymentIntentStatus(
         transaction.status ?? 'in_progress',
       ),
-      created:
-        typeof transaction.date === 'string'
-          ? Math.floor(new Date(transaction.date).getTime() / 1000)
-          : (transaction.date ?? 0),
+      created: created,
       customer: customerId,
       paymentMethod: paymentMethod,
       description: `ChargeBee ${transactionType} transaction`,
@@ -62,6 +47,47 @@ export class ChargebeePaymentIntentAdapter {
       amountCapturable: amountCapturable,
       captureMethod: 'automatic', // ChargeBee default behavior
     };
+  }
+
+  private extractCurrencyCode(transaction: ChargebeeTransaction): string {
+    const currencyCode =
+      ((transaction as Record<string, unknown>)['currency_code'] as
+        | string
+        | undefined) ?? transaction.currencyCode;
+    return currencyCode ?? 'usd';
+  }
+
+  private extractCustomerId(
+    transaction: ChargebeeTransaction,
+  ): string | undefined {
+    return (
+      ((transaction as Record<string, unknown>)['customer_id'] as
+        | string
+        | undefined) ?? transaction.customerId
+    );
+  }
+
+  private extractAmountCapturable(
+    transaction: ChargebeeTransaction,
+  ): number | undefined {
+    return (transaction as Record<string, unknown>)['amount_capturable'] as
+      | number
+      | undefined;
+  }
+
+  private extractTransactionType(transaction: ChargebeeTransaction): string {
+    return (
+      ((transaction as Record<string, unknown>)['type'] as
+        | string
+        | undefined) ?? 'transaction'
+    );
+  }
+
+  private extractCreatedTimestamp(transaction: ChargebeeTransaction): number {
+    if (typeof transaction.date === 'string') {
+      return Math.floor(new Date(transaction.date).getTime() / 1000);
+    }
+    return transaction.date ?? 0;
   }
 
   /**

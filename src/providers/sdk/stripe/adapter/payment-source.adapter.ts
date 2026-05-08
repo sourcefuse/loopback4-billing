@@ -1,7 +1,6 @@
 import Stripe from 'stripe';
 import {AnyObject} from '@loopback/repository';
-import {TPaymentMethod} from '../../../../types';
-import {IAdapter} from '../../../../types';
+import {TPaymentMethod, IAdapter} from '../../../../types';
 import {IStripePaymentSource, StripeLegacySource} from '../type';
 
 // Payment method default values
