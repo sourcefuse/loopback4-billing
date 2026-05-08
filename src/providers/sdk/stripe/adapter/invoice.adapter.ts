@@ -1,6 +1,12 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+import Stripe from 'stripe';
 import {AnyObject} from '@loopback/repository';
-import {IAdapter} from '../../../../types';
+import {
+  IAdapter,
+  TInvoicePdf,
+  TInvoicePaymentDetails,
+  TPaymentMethod,
+} from '../../../../types';
 import {IStripeInvoice} from '../type';
 export class StripeInvoiceAdapter implements IAdapter<IStripeInvoice> {
   constructor() {}
@@ -67,6 +73,44 @@ export class StripeInvoiceAdapter implements IAdapter<IStripeInvoice> {
       currency: data.currencyCode,
       ...shippingDetails,
       auto_advance: data.options?.autoAdvance ?? false,
+    };
+  }
+
+  /**
+   * Adapts a Stripe Invoice to TInvoicePdf format.
+   *
+   * @param invoice - Stripe Invoice object
+   * @returns TInvoicePdf - Invoice PDF information
+   */
+  adaptToInvoicePdf(invoice: Stripe.Invoice): TInvoicePdf {
+    return {
+      invoiceId: invoice.id,
+      pdfUrl: invoice.invoice_pdf ?? '',
+      generatedAt: Math.floor(Date.now() / 1000),
+    };
+  }
+
+  /**
+   * Adapts Stripe invoice and charge data to TInvoicePaymentDetails format.
+   *
+   * @param invoice - Stripe Invoice object
+   * @param paymentMethod - Payment method details
+   * @returns TInvoicePaymentDetails - Payment details for the invoice
+   */
+  adaptToPaymentDetails(
+    invoice: Stripe.Invoice,
+    paymentMethod: TPaymentMethod,
+  ): TInvoicePaymentDetails {
+    const charge = invoice.charge as Stripe.Charge;
+    return {
+      invoiceId: invoice.id,
+      paymentMethod: paymentMethod,
+      paymentDate: invoice.status_transitions?.paid_at ?? undefined,
+      amount: charge.amount,
+      currency: charge.currency,
+      status: charge.status,
+      transactionId: charge.id,
+      description: charge.description ?? undefined,
     };
   }
 }

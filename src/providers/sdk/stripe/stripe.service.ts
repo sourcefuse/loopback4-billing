@@ -22,6 +22,7 @@ import {
   StripeCustomerAdapter,
   StripeInvoiceAdapter,
   StripePaymentAdapter,
+  StripePaymentIntentAdapter,
   StripeSubscriptionAdapter,
 } from './adapter';
 import {StripeBindings} from './key';
@@ -34,12 +35,6 @@ import {
   StripeLegacySource,
 } from './type';
 export class StripeService implements IStripeService {
-  // Payment method default values
-  private static readonly DEFAULT_EXPIRY_MONTH = 12;
-  private static readonly DEFAULT_EXPIRY_YEAR = 2025;
-  private static readonly DEFAULT_FUNDING_TYPE = 'credit';
-  private static readonly DEFAULT_CARD_BRAND = 'unknown';
-
   /**
    * Stripe SDK instance. `protected` to allow subclasses (and test doubles)
    * to substitute the instance without re-opening the class.
@@ -49,6 +44,7 @@ export class StripeService implements IStripeService {
   stripeInvoiceAdapter: StripeInvoiceAdapter;
   stripePaymentAdapter: StripePaymentAdapter;
   stripeSubscriptionAdapter: StripeSubscriptionAdapter;
+  stripePaymentIntentAdapter: StripePaymentIntentAdapter;
 
   constructor(
     @inject(StripeBindings.config, {optional: true})
@@ -61,6 +57,7 @@ export class StripeService implements IStripeService {
     this.stripeInvoiceAdapter = new StripeInvoiceAdapter();
     this.stripePaymentAdapter = new StripePaymentAdapter();
     this.stripeSubscriptionAdapter = new StripeSubscriptionAdapter();
+    this.stripePaymentIntentAdapter = new StripePaymentIntentAdapter();
   }
 
   async createCustomer(customerDto: IStripeCustomer): Promise<IStripeCustomer> {
@@ -574,14 +571,8 @@ export class StripeService implements IStripeService {
         );
       }
 
-      // Return the PDF information
-      return {
-        invoiceId: invoice.id,
-        pdfUrl: invoice.invoice_pdf,
-        generatedAt: Math.floor(Date.now() / 1000), // Current timestamp in seconds
-        // Stripe PDF URLs have expiry but it's not exposed in the API response
-        // The URL is typically valid for a limited time (check Stripe docs)
-      };
+      // Return the PDF information using adapter
+      return this.stripeInvoiceAdapter.adaptToInvoicePdf(invoice);
     } catch (error) {
       // Re-throw with better error message
       const stripeError = error as {code?: string; message?: string};
@@ -628,25 +619,20 @@ export class StripeService implements IStripeService {
         const pm = await this.stripe.paymentMethods.retrieve(
           charge.payment_method as string,
         );
-        paymentMethod = this.adaptPaymentMethod(pm);
+        paymentMethod = this.stripePaymentAdapter.adaptPaymentMethod(pm);
       } else if (charge.source) {
         // Legacy source-based payment
         const source = charge.source as unknown as StripeLegacySource;
-        paymentMethod = this.adaptSource(source);
+        paymentMethod = this.stripePaymentAdapter.adaptSource(source);
       } else {
         throw new Error('No payment method information available');
       }
 
-      return {
-        invoiceId: invoice.id,
-        paymentMethod: paymentMethod,
-        paymentDate: invoice.status_transitions?.paid_at ?? undefined,
-        amount: charge.amount,
-        currency: charge.currency,
-        status: charge.status,
-        transactionId: charge.id,
-        description: charge.description ?? undefined,
-      };
+      // Return using adapter
+      return this.stripeInvoiceAdapter.adaptToPaymentDetails(
+        invoice,
+        paymentMethod,
+      );
     } catch (error) {
       const stripeError = error as {code?: string; message?: string};
       if (stripeError.code === 'resource_missing') {
@@ -684,30 +670,20 @@ export class StripeService implements IStripeService {
           const pm = await this.stripe.paymentMethods.retrieve(
             paymentIntent.payment_method,
           );
-          paymentMethod = this.adaptPaymentMethod(pm);
+          paymentMethod = this.stripePaymentAdapter.adaptPaymentMethod(pm);
         } else {
           // Already expanded
-          paymentMethod = this.adaptPaymentMethod(
+          paymentMethod = this.stripePaymentAdapter.adaptPaymentMethod(
             paymentIntent.payment_method as Stripe.PaymentMethod,
           );
         }
       }
 
-      return {
-        id: paymentIntent.id,
-        amount: paymentIntent.amount,
-        currency: paymentIntent.currency,
-        status: paymentIntent.status,
-        created: paymentIntent.created,
-        customer: (paymentIntent.customer as string) ?? undefined,
-        paymentMethod: paymentMethod,
-        description: paymentIntent.description ?? undefined,
-        metadata: paymentIntent.metadata as Record<string, string>,
-        latestCharge: (paymentIntent.latest_charge as string) ?? undefined,
-        clientSecret: paymentIntent.client_secret ?? undefined,
-        amountCapturable: paymentIntent.amount_capturable,
-        captureMethod: paymentIntent.capture_method,
-      };
+      // Return using adapter
+      return this.stripePaymentIntentAdapter.adaptToModel(
+        paymentIntent,
+        paymentMethod,
+      );
     } catch (error) {
       const stripeError = error as {code?: string; message?: string};
       if (stripeError.code === 'resource_missing') {
@@ -715,64 +691,5 @@ export class StripeService implements IStripeService {
       }
       throw error;
     }
-  }
-
-  /**
-   * Adapts a Stripe PaymentMethod to the generic TPaymentMethod format.
-   */
-  private adaptPaymentMethod(pm: Stripe.PaymentMethod): TPaymentMethod {
-    if (pm.type === 'card') {
-      return {
-        type: 'card',
-        id: pm.id,
-        customer: pm.customer as string,
-        card: {
-          brand: pm.card!.brand,
-          last4: pm.card!.last4,
-          expMonth: pm.card!.exp_month,
-          expYear: pm.card!.exp_year,
-          funding: pm.card!.funding,
-          country: pm.card!.country ?? undefined,
-        },
-      };
-    }
-
-    // Handle other payment method types as needed
-    return {
-      type: pm.type,
-      id: pm.id,
-      customer: pm.customer as string,
-    };
-  }
-
-  /**
-   * Adapts a legacy Stripe Source to the generic TPaymentMethod format.
-   */
-  private adaptSource(source: StripeLegacySource): TPaymentMethod {
-    if (source.type === 'card' && source.card) {
-      const card = source.card as {
-        brand: string;
-        last4: string;
-        expMonth: number;
-        expYear: number;
-        funding: string;
-      };
-      return {
-        type: 'card',
-        id: source.id,
-        card: {
-          brand: card.brand || StripeService.DEFAULT_CARD_BRAND,
-          last4: card.last4 || '****',
-          expMonth: card.expMonth || StripeService.DEFAULT_EXPIRY_MONTH,
-          expYear: card.expYear || StripeService.DEFAULT_EXPIRY_YEAR,
-          funding: card.funding || StripeService.DEFAULT_FUNDING_TYPE,
-        },
-      };
-    }
-
-    return {
-      type: source.type ?? 'unknown',
-      id: source.id,
-    };
   }
 }

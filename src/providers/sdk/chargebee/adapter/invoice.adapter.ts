@@ -1,3 +1,9 @@
+import {
+  TInvoicePdf,
+  TInvoicePaymentDetails,
+  TPaymentMethod,
+} from '../../../../types';
+import {ChargebeeInvoice} from '../type';
 import {AnyObject} from '@loopback/repository';
 import {ICharge, IChargeBeeInvoice, IDiscount} from '../type';
 export class InvoiceAdapter {
@@ -37,5 +43,63 @@ export class InvoiceAdapter {
       currencyCode: invoice.currency_code,
     };
     return res;
+  }
+
+  /**
+   * Adapts a ChargeBee invoice download result to TInvoicePdf format.
+   *
+   * @param download - ChargeBee download object
+   * @param invoiceId - The invoice ID
+   * @returns TInvoicePdf - Invoice PDF information
+   */
+  adaptToInvoicePdf(
+    download: Record<string, unknown>,
+    invoiceId: string,
+  ): TInvoicePdf {
+    return {
+      invoiceId: invoiceId,
+      pdfUrl: String(download['download_url'] ?? ''),
+      generatedAt: Math.floor(Date.now() / 1000), // Current timestamp in seconds
+      expiresAt: download['expires_at'] as number | undefined,
+    };
+  }
+
+  /**
+   * Adapts ChargeBee invoice and payment method data to TInvoicePaymentDetails format.
+   *
+   * @param invoice - ChargeBee invoice object
+   * @param paymentMethod - Payment method details
+   * @returns TInvoicePaymentDetails - Payment details for the invoice
+   */
+  adaptToPaymentDetails(
+    invoice: ChargebeeInvoice,
+    paymentMethod: TPaymentMethod,
+  ): TInvoicePaymentDetails {
+    const id = invoice.invoiceId ?? invoice.id ?? '';
+    return {
+      invoiceId: id,
+      paymentMethod: paymentMethod,
+      paymentDate: invoice.paidAt
+        ? Math.floor(new Date(invoice.paidAt).getTime() / 1000)
+        : undefined,
+      amount: invoice.total ?? 0,
+      currency: invoice.currencyCode ?? 'USD',
+      status: invoice.status ?? 'unknown',
+      transactionId: id,
+      description: `Payment for invoice ${id}`,
+    };
+  }
+
+  /**
+   * Extracts customer ID from invoice.
+   *
+   * @param invoice - The ChargeBee invoice
+   * @returns Customer ID or empty string if not found
+   */
+  getCustomerIdFromInvoice(invoice: ChargebeeInvoice): string {
+    const customerId =
+      ((invoice as Record<string, unknown>)['customer_id'] as string) ||
+      invoice.customerId;
+    return customerId ?? '';
   }
 }
