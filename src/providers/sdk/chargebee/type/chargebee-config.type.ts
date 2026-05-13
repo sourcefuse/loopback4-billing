@@ -1,4 +1,19 @@
 /**
+ * Card default values for when card data is missing from the provider response.
+ * These should only be used as fallbacks when payment providers return incomplete data.
+ */
+export interface ChargebeeCardDefaults {
+  /** Default expiry month (1-12). Defaults to 12. */
+  defaultExpiryMonth?: number;
+  /** Default expiry year. Defaults to current year. */
+  defaultExpiryYear?: number;
+  /** Default funding type. Defaults to 'credit'. */
+  defaultFundingType?: string;
+  /** Default card brand. Defaults to 'unknown'. */
+  defaultCardBrand?: string;
+}
+
+/**
  * Configuration for the Chargebee billing provider.
  *
  * All fields beyond `site` and `apiKey` are optional overrides — sensible
@@ -34,6 +49,11 @@ export interface ChargeBeeConfig {
    * Must be one of the reason codes configured on your Chargebee site.
    */
   defaultCancelReasonCode?: string;
+  /**
+   * Card default values for fallback when provider returns incomplete card data.
+   * These should rarely be needed with valid Chargebee responses.
+   */
+  cardDefaults?: ChargebeeCardDefaults;
 }
 
 export type ChargebeePricingModel =

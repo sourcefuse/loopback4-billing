@@ -65,7 +65,9 @@ export class ChargeBeeService implements IChargeBeeService {
     this.customerAdapter = new CustomerAdapter();
     this.paymentSource = new PaymentSourceAdapter();
     this.chargebeeSubscriptionAdapter = new ChargebeeSubscriptionAdapter();
-    this.chargebeePaymentIntentAdapter = new ChargebeePaymentIntentAdapter();
+    this.chargebeePaymentIntentAdapter = new ChargebeePaymentIntentAdapter(
+      chargeBeeConfig.cardDefaults,
+    );
   }
   async createCustomer(
     customerDto: IChargeBeeCustomer,

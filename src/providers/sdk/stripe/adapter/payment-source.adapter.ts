@@ -1,16 +1,24 @@
 import Stripe from 'stripe';
 import {AnyObject} from '@loopback/repository';
 import {TPaymentMethod, IAdapter} from '../../../../types';
-import {IStripePaymentSource, StripeLegacySource} from '../type';
-
-// Payment method default values
-const DEFAULT_EXPIRY_MONTH = 12;
-const DEFAULT_EXPIRY_YEAR = 2025;
-const DEFAULT_FUNDING_TYPE = 'credit';
-const DEFAULT_CARD_BRAND = 'unknown';
+import {
+  IStripePaymentSource,
+  StripeLegacySource,
+  StripeCardDefaults,
+} from '../type';
 
 export class StripePaymentAdapter implements IAdapter<IStripePaymentSource> {
-  constructor() {}
+  private readonly cardDefaults: Required<StripeCardDefaults>;
+
+  constructor(cardDefaults?: StripeCardDefaults) {
+    const currentYear = new Date().getFullYear();
+    this.cardDefaults = {
+      defaultExpiryMonth: cardDefaults?.defaultExpiryMonth ?? 12,
+      defaultExpiryYear: cardDefaults?.defaultExpiryYear ?? currentYear,
+      defaultFundingType: cardDefaults?.defaultFundingType ?? 'credit',
+      defaultCardBrand: cardDefaults?.defaultCardBrand ?? 'unknown',
+    };
+  }
 
   adaptToModel(resp: AnyObject): IStripePaymentSource {
     return {
@@ -78,11 +86,11 @@ export class StripePaymentAdapter implements IAdapter<IStripePaymentSource> {
         type: 'card',
         id: source.id,
         card: {
-          brand: card.brand || DEFAULT_CARD_BRAND,
+          brand: card.brand || this.cardDefaults.defaultCardBrand,
           last4: card.last4 || '****',
-          expMonth: card.expMonth || DEFAULT_EXPIRY_MONTH,
-          expYear: card.expYear || DEFAULT_EXPIRY_YEAR,
-          funding: card.funding || DEFAULT_FUNDING_TYPE,
+          expMonth: card.expMonth || this.cardDefaults.defaultExpiryMonth,
+          expYear: card.expYear || this.cardDefaults.defaultExpiryYear,
+          funding: card.funding || this.cardDefaults.defaultFundingType,
         },
       };
     }

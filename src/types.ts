@@ -168,6 +168,19 @@ export enum ProrationBehavior {
 }
 
 /**
+ * Payment intent status values
+ */
+export enum PaymentStatus {
+  REQUIRES_PAYMENT_METHOD = 'requires_payment_method',
+  REQUIRES_CONFIRMATION = 'requires_confirmation',
+  REQUIRES_ACTION = 'requires_action',
+  PROCESSING = 'processing',
+  REQUIRES_CAPTURE = 'requires_capture',
+  CANCELED = 'canceled',
+  SUCCEEDED = 'succeeded',
+}
+
+/**
  * Parameters required to create a product in the billing provider.
  */
 export interface TProduct {
@@ -270,6 +283,38 @@ export interface TInvoicePdf {
 }
 
 /**
+ * Card payment method details
+ */
+export interface TCard {
+  /** Card brand: visa, mastercard, amex, etc. */
+  brand: string;
+  /** Last 4 digits */
+  last4: string;
+  /** Expiration month */
+  expMonth: number;
+  /** Expiration year */
+  expYear: number;
+  /** Funding type: credit, debit, prepaid, unknown */
+  funding: string;
+  /** Country code */
+  country?: string;
+}
+
+/**
+ * Bank account payment method details
+ */
+export interface TBankAccount {
+  /** Bank name */
+  bankName: string;
+  /** Last 4 digits */
+  last4: string;
+  /** Routing number */
+  routingNumber?: string;
+  /** Account type: checking, savings */
+  accountType?: string;
+}
+
+/**
  * Represents payment method details (card, bank account, etc.)
  */
 export interface TPaymentMethod {
@@ -277,32 +322,10 @@ export interface TPaymentMethod {
   type: string;
 
   /** Card details (if type is card) */
-  card?: {
-    /** Card brand: visa, mastercard, amex, etc. */
-    brand: string;
-    /** Last 4 digits */
-    last4: string;
-    /** Expiration month */
-    expMonth: number;
-    /** Expiration year */
-    expYear: number;
-    /** Funding type: credit, debit, prepaid, unknown */
-    funding: string;
-    /** Country code */
-    country?: string;
-  };
+  card?: TCard;
 
   /** Bank account details (if type is bank_account) */
-  bankAccount?: {
-    /** Bank name */
-    bankName: string;
-    /** Last 4 digits */
-    last4: string;
-    /** Routing number */
-    routingNumber?: string;
-    /** Account type: checking, savings */
-    accountType?: string;
-  };
+  bankAccount?: TBankAccount;
 
   /** Customer ID */
   customer?: string;
@@ -363,7 +386,7 @@ export interface TPaymentIntent {
    * - canceled
    * - succeeded
    */
-  status: string;
+  status: PaymentStatus;
 
   /** Creation timestamp (seconds) */
   created: number;

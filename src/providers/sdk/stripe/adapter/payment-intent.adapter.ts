@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import {TPaymentIntent, TPaymentMethod} from '../../../../types';
+import {PaymentStatus, TPaymentIntent, TPaymentMethod} from '../../../../types';
 
 export class StripePaymentIntentAdapter {
   constructor() {}
@@ -19,7 +19,7 @@ export class StripePaymentIntentAdapter {
       id: paymentIntent.id,
       amount: paymentIntent.amount,
       currency: paymentIntent.currency,
-      status: paymentIntent.status,
+      status: paymentIntent.status as PaymentStatus,
       created: paymentIntent.created,
       customer: (paymentIntent.customer as string) ?? undefined,
       paymentMethod: paymentMethod,

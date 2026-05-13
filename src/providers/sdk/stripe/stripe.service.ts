@@ -55,7 +55,9 @@ export class StripeService implements IStripeService {
     });
     this.stripeCustomerAdapter = new StripeCustomerAdapter();
     this.stripeInvoiceAdapter = new StripeInvoiceAdapter();
-    this.stripePaymentAdapter = new StripePaymentAdapter();
+    this.stripePaymentAdapter = new StripePaymentAdapter(
+      stripeConfig.cardDefaults,
+    );
     this.stripeSubscriptionAdapter = new StripeSubscriptionAdapter();
     this.stripePaymentIntentAdapter = new StripePaymentIntentAdapter();
   }

@@ -1,18 +1,23 @@
-import {TPaymentIntent, TPaymentMethod} from '../../../../types';
+import {PaymentStatus, TPaymentIntent, TPaymentMethod} from '../../../../types';
 import {
   ChargebeeCard,
   ChargebeePaymentSource,
   ChargebeeTransaction,
+  ChargebeeCardDefaults,
 } from '../type';
 
-// Payment method default values
-const DEFAULT_EXPIRY_MONTH = 12;
-const DEFAULT_EXPIRY_YEAR = 2025;
-const DEFAULT_FUNDING_TYPE = 'credit';
-const DEFAULT_CARD_BRAND = 'unknown';
-
 export class ChargebeePaymentIntentAdapter {
-  constructor() {}
+  private readonly cardDefaults: Required<ChargebeeCardDefaults>;
+
+  constructor(cardDefaults?: ChargebeeCardDefaults) {
+    const currentYear = new Date().getFullYear();
+    this.cardDefaults = {
+      defaultExpiryMonth: cardDefaults?.defaultExpiryMonth ?? 12,
+      defaultExpiryYear: cardDefaults?.defaultExpiryYear ?? currentYear,
+      defaultFundingType: cardDefaults?.defaultFundingType ?? 'credit',
+      defaultCardBrand: cardDefaults?.defaultCardBrand ?? 'unknown',
+    };
+  }
 
   /**
    * Adapts a ChargeBee transaction to the generic TPaymentIntent format.
@@ -101,24 +106,24 @@ export class ChargebeePaymentIntentAdapter {
    */
   private mapTransactionStatusToPaymentIntentStatus(
     transactionStatus: string,
-  ): string {
+  ): PaymentStatus {
     switch (transactionStatus) {
       case 'in_progress':
-        return 'processing';
+        return PaymentStatus.PROCESSING;
       case 'success':
-        return 'succeeded';
+        return PaymentStatus.SUCCEEDED;
       case 'voided':
-        return 'canceled';
+        return PaymentStatus.CANCELED;
       case 'failure':
-        return 'canceled';
+        return PaymentStatus.CANCELED;
       case 'timeout':
-        return 'canceled';
+        return PaymentStatus.CANCELED;
       case 'needs_attention':
-        return 'requires_action';
+        return PaymentStatus.REQUIRES_ACTION;
       case 'late_failure':
-        return 'canceled';
+        return PaymentStatus.CANCELED;
       default:
-        return 'requires_payment_method';
+        return PaymentStatus.REQUIRES_PAYMENT_METHOD;
     }
   }
 
@@ -158,9 +163,9 @@ export class ChargebeePaymentIntentAdapter {
     return {
       brand: this.getCardBrand(card),
       last4: card.last4 ?? '****',
-      expMonth: card.expiryMonth ?? DEFAULT_EXPIRY_MONTH,
-      expYear: card.expiryYear ?? DEFAULT_EXPIRY_YEAR,
-      funding: card.funding ?? DEFAULT_FUNDING_TYPE,
+      expMonth: card.expiryMonth ?? this.cardDefaults.defaultExpiryMonth,
+      expYear: card.expiryYear ?? this.cardDefaults.defaultExpiryYear,
+      funding: card.funding ?? this.cardDefaults.defaultFundingType,
     };
   }
 
@@ -174,7 +179,7 @@ export class ChargebeePaymentIntentAdapter {
     if (card.firstSixDigits) {
       return this.detectCardBrand(card.firstSixDigits);
     }
-    return DEFAULT_CARD_BRAND;
+    return this.cardDefaults.defaultCardBrand;
   }
 
   /**
