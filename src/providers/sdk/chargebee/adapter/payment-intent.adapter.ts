@@ -6,16 +6,23 @@ import {
   ChargebeeCardDefaults,
 } from '../type';
 
+/** Default fallback values for card details when config is not provided */
+const DEFAULT_EXPIRY_MONTH = 12;
+const DEFAULT_FUNDING_TYPE = 'credit';
+const DEFAULT_CARD_BRAND = 'unknown';
+
 export class ChargebeePaymentIntentAdapter {
   private readonly cardDefaults: Required<ChargebeeCardDefaults>;
 
   constructor(cardDefaults?: ChargebeeCardDefaults) {
     const currentYear = new Date().getFullYear();
     this.cardDefaults = {
-      defaultExpiryMonth: cardDefaults?.defaultExpiryMonth ?? 12,
+      defaultExpiryMonth:
+        cardDefaults?.defaultExpiryMonth ?? DEFAULT_EXPIRY_MONTH,
       defaultExpiryYear: cardDefaults?.defaultExpiryYear ?? currentYear,
-      defaultFundingType: cardDefaults?.defaultFundingType ?? 'credit',
-      defaultCardBrand: cardDefaults?.defaultCardBrand ?? 'unknown',
+      defaultFundingType:
+        cardDefaults?.defaultFundingType ?? DEFAULT_FUNDING_TYPE,
+      defaultCardBrand: cardDefaults?.defaultCardBrand ?? DEFAULT_CARD_BRAND,
     };
   }
 
