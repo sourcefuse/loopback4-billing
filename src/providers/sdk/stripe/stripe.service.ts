@@ -1,11 +1,16 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+
 import {inject} from '@loopback/core';
 import Stripe from 'stripe';
 import {
   CollectionMethod,
   RecurringInterval,
   TInvoice,
+  TInvoicePdf,
+  TInvoicePaymentDetails,
   TInvoicePrice,
+  TPaymentIntent,
+  TPaymentMethod,
   TPrice,
   TProduct,
   TSubscriptionCreate,
@@ -17,6 +22,7 @@ import {
   StripeCustomerAdapter,
   StripeInvoiceAdapter,
   StripePaymentAdapter,
+  StripePaymentIntentAdapter,
   StripeSubscriptionAdapter,
 } from './adapter';
 import {StripeBindings} from './key';
@@ -26,6 +32,7 @@ import {
   IStripePaymentSource,
   IStripeService,
   StripeConfig,
+  StripeLegacySource,
 } from './type';
 export class StripeService implements IStripeService {
   /**
@@ -37,6 +44,7 @@ export class StripeService implements IStripeService {
   stripeInvoiceAdapter: StripeInvoiceAdapter;
   stripePaymentAdapter: StripePaymentAdapter;
   stripeSubscriptionAdapter: StripeSubscriptionAdapter;
+  stripePaymentIntentAdapter: StripePaymentIntentAdapter;
 
   constructor(
     @inject(StripeBindings.config, {optional: true})
@@ -47,8 +55,11 @@ export class StripeService implements IStripeService {
     });
     this.stripeCustomerAdapter = new StripeCustomerAdapter();
     this.stripeInvoiceAdapter = new StripeInvoiceAdapter();
-    this.stripePaymentAdapter = new StripePaymentAdapter();
+    this.stripePaymentAdapter = new StripePaymentAdapter(
+      stripeConfig.cardDefaults,
+    );
     this.stripeSubscriptionAdapter = new StripeSubscriptionAdapter();
+    this.stripePaymentIntentAdapter = new StripePaymentIntentAdapter();
   }
 
   async createCustomer(customerDto: IStripeCustomer): Promise<IStripeCustomer> {
@@ -530,6 +541,155 @@ export class StripeService implements IStripeService {
     } catch (error) {
       if ((error as {code?: string}).code === 'resource_missing') {
         return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves the PDF download URL for a Stripe invoice.
+   *
+   * Stripe invoices have an `invoice_pdf` field that contains a temporary URL
+   * to download the PDF. This URL is typically valid for a limited time.
+   *
+   * Note: PDF URLs are only available for finalized invoices. Draft invoices
+   * will not have this field.
+   *
+   * @param invoiceId - The Stripe invoice ID
+   * @returns Object containing the PDF URL and generation timestamp
+   * @throws Error if the invoice doesn't exist or PDF URL is not available
+   */
+  async getInvoicePdf(invoiceId: string): Promise<TInvoicePdf> {
+    try {
+      // Retrieve the invoice from Stripe
+      const invoice = await this.stripe.invoices.retrieve(invoiceId);
+
+      // Check if PDF URL is available
+      if (!invoice.invoice_pdf) {
+        throw new Error(
+          `PDF URL not available for invoice ${invoiceId}. ` +
+            `The invoice may be in draft status or not finalized. ` +
+            `Only finalized invoices have PDF URLs.`,
+        );
+      }
+
+      // Return the PDF information using adapter
+      return this.stripeInvoiceAdapter.adaptToInvoicePdf(invoice);
+    } catch (error) {
+      // Re-throw with better error message
+      const stripeError = error as {code?: string; message?: string};
+      if (stripeError.code === 'resource_missing') {
+        throw new Error(`Invoice not found: ${invoiceId}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves payment method details associated with a Stripe invoice.
+   *
+   * This method retrieves the invoice, expands to get the charge and payment
+   * method details, and returns comprehensive payment information.
+   *
+   * @param invoiceId - The Stripe invoice ID
+   * @returns Payment details including method, amount, and status
+   * @throws Error if invoice not found or no payment available
+   */
+  async getInvoicePaymentDetails(
+    invoiceId: string,
+  ): Promise<TInvoicePaymentDetails> {
+    try {
+      // Retrieve the invoice with expanded charge and payment method
+      const invoice = await this.stripe.invoices.retrieve(invoiceId, {
+        expand: ['charge', 'default_payment_method'],
+      });
+
+      // Check if invoice has a charge
+      if (!invoice.charge) {
+        throw new Error(
+          `No payment found for invoice ${invoiceId}. The invoice may not be paid yet.`,
+        );
+      }
+
+      const charge = invoice.charge as Stripe.Charge;
+
+      // Get payment method details
+      let paymentMethod: TPaymentMethod;
+
+      if (charge.payment_method) {
+        // Retrieve the payment method
+        const pm = await this.stripe.paymentMethods.retrieve(
+          charge.payment_method as string,
+        );
+        paymentMethod = this.stripePaymentAdapter.adaptPaymentMethod(pm);
+      } else if (charge.source) {
+        // Legacy source-based payment
+        const source = charge.source as unknown as StripeLegacySource;
+        paymentMethod = this.stripePaymentAdapter.adaptSource(source);
+      } else {
+        throw new Error('No payment method information available');
+      }
+
+      // Return using adapter
+      return this.stripeInvoiceAdapter.adaptToPaymentDetails(
+        invoice,
+        paymentMethod,
+      );
+    } catch (error) {
+      const stripeError = error as {code?: string; message?: string};
+      if (stripeError.code === 'resource_missing') {
+        throw new Error(`Invoice not found: ${invoiceId}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves a Stripe payment intent by ID.
+   *
+   * Payment intents represent the payment flow from initiation to completion.
+   * This method returns comprehensive payment tracking information.
+   *
+   * @param paymentIntentId - The Stripe payment intent ID
+   * @returns Payment intent details including status, amount, and method
+   * @throws Error if payment intent not found
+   */
+  async getPaymentIntent(paymentIntentId: string): Promise<TPaymentIntent> {
+    try {
+      // Retrieve the payment intent with expanded payment method
+      const paymentIntent = await this.stripe.paymentIntents.retrieve(
+        paymentIntentId,
+        {
+          expand: ['payment_method', 'latest_charge'],
+        },
+      );
+
+      // Adapt payment method if available
+      let paymentMethod: TPaymentMethod | undefined;
+      if (paymentIntent.payment_method) {
+        if (typeof paymentIntent.payment_method === 'string') {
+          // If it's just an ID, retrieve the full payment method
+          const pm = await this.stripe.paymentMethods.retrieve(
+            paymentIntent.payment_method,
+          );
+          paymentMethod = this.stripePaymentAdapter.adaptPaymentMethod(pm);
+        } else {
+          // Already expanded
+          paymentMethod = this.stripePaymentAdapter.adaptPaymentMethod(
+            paymentIntent.payment_method as Stripe.PaymentMethod,
+          );
+        }
+      }
+
+      // Return using adapter
+      return this.stripePaymentIntentAdapter.adaptToModel(
+        paymentIntent,
+        paymentMethod,
+      );
+    } catch (error) {
+      const stripeError = error as {code?: string; message?: string};
+      if (stripeError.code === 'resource_missing') {
+        throw new Error(`Payment intent not found: ${paymentIntentId}`);
       }
       throw error;
     }

@@ -1,8 +1,31 @@
+import Stripe from 'stripe';
 import {AnyObject} from '@loopback/repository';
-import {IAdapter} from '../../../../types';
-import {IStripePaymentSource} from '../type';
+import {TPaymentMethod, IAdapter} from '../../../../types';
+import {
+  IStripePaymentSource,
+  StripeLegacySource,
+  StripeCardDefaults,
+} from '../type';
+
+/** Default fallback values for card details when config is not provided */
+const DEFAULT_EXPIRY_MONTH = 12;
+const DEFAULT_FUNDING_TYPE = 'credit';
+const DEFAULT_CARD_BRAND = 'unknown';
+
 export class StripePaymentAdapter implements IAdapter<IStripePaymentSource> {
-  constructor() {}
+  private readonly cardDefaults: Required<StripeCardDefaults>;
+
+  constructor(cardDefaults?: StripeCardDefaults) {
+    const currentYear = new Date().getFullYear();
+    this.cardDefaults = {
+      defaultExpiryMonth:
+        cardDefaults?.defaultExpiryMonth ?? DEFAULT_EXPIRY_MONTH,
+      defaultExpiryYear: cardDefaults?.defaultExpiryYear ?? currentYear,
+      defaultFundingType:
+        cardDefaults?.defaultFundingType ?? DEFAULT_FUNDING_TYPE,
+      defaultCardBrand: cardDefaults?.defaultCardBrand ?? DEFAULT_CARD_BRAND,
+    };
+  }
 
   adaptToModel(resp: AnyObject): IStripePaymentSource {
     return {
@@ -22,7 +45,66 @@ export class StripePaymentAdapter implements IAdapter<IStripePaymentSource> {
       },
     };
   }
-  adaptFromModel(data: IStripePaymentSource): AnyObject {
+  adaptFromModel(_data: IStripePaymentSource): AnyObject {
     return {}; // This is intentional
+  }
+
+  /**
+   * Adapts a Stripe PaymentMethod to the generic TPaymentMethod format.
+   */
+  adaptPaymentMethod(pm: Stripe.PaymentMethod): TPaymentMethod {
+    if (pm.type === 'card') {
+      return {
+        type: 'card',
+        id: pm.id,
+        customer: pm.customer as string,
+        card: {
+          brand: pm.card!.brand,
+          last4: pm.card!.last4,
+          expMonth: pm.card!.exp_month,
+          expYear: pm.card!.exp_year,
+          funding: pm.card!.funding,
+          country: pm.card!.country ?? undefined,
+        },
+      };
+    }
+
+    // Handle other payment method types as needed
+    return {
+      type: pm.type,
+      id: pm.id,
+      customer: pm.customer as string,
+    };
+  }
+
+  /**
+   * Adapts a legacy Stripe Source to the generic TPaymentMethod format.
+   */
+  adaptSource(source: StripeLegacySource): TPaymentMethod {
+    if (source.type === 'card' && source.card) {
+      const card = source.card as {
+        brand: string;
+        last4: string;
+        expMonth: number;
+        expYear: number;
+        funding: string;
+      };
+      return {
+        type: 'card',
+        id: source.id,
+        card: {
+          brand: card.brand || this.cardDefaults.defaultCardBrand,
+          last4: card.last4 || '****',
+          expMonth: card.expMonth || this.cardDefaults.defaultExpiryMonth,
+          expYear: card.expYear || this.cardDefaults.defaultExpiryYear,
+          funding: card.funding || this.cardDefaults.defaultFundingType,
+        },
+      };
+    }
+
+    return {
+      type: source.type ?? 'unknown',
+      id: source.id,
+    };
   }
 }

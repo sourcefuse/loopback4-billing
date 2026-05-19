@@ -39,6 +39,9 @@ export interface IService {
   ): Promise<TInvoice>;
   deleteInvoice(invoiceId: string): Promise<void>;
   getPaymentStatus(invoiceId: string): Promise<boolean>;
+  getInvoicePdf(invoiceId: string): Promise<TInvoicePdf>;
+  getInvoicePaymentDetails(invoiceId: string): Promise<TInvoicePaymentDetails>;
+  getPaymentIntent(paymentIntentId: string): Promise<TPaymentIntent>;
 }
 export interface IAdapter<T, R = T> {
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -165,6 +168,19 @@ export enum ProrationBehavior {
 }
 
 /**
+ * Payment intent status values
+ */
+export enum PaymentStatus {
+  REQUIRES_PAYMENT_METHOD = 'requires_payment_method',
+  REQUIRES_CONFIRMATION = 'requires_confirmation',
+  REQUIRES_ACTION = 'requires_action',
+  PROCESSING = 'processing',
+  REQUIRES_CAPTURE = 'requires_capture',
+  CANCELED = 'canceled',
+  SUCCEEDED = 'succeeded',
+}
+
+/**
  * Parameters required to create a product in the billing provider.
  */
 export interface TProduct {
@@ -242,6 +258,162 @@ export interface TInvoicePrice {
   totalAmount: number;
   taxAmount: number;
   amountExcludingTax: number;
+}
+
+/**
+ * Represents a PDF download URL for an invoice.
+ *
+ * The PDF URL is typically temporary and expires after a certain period.
+ * The exact expiry duration depends on the billing provider.
+ */
+export interface TInvoicePdf {
+  /** The invoice ID */
+  invoiceId: string;
+  /** The temporary download URL for the PDF */
+  pdfUrl: string;
+  /**
+   * Timestamp (in seconds) when the URL expires, if provided by the provider.
+   * Some providers don't return expiry information.
+   */
+  expiresAt?: number;
+  /**
+   * Timestamp (in seconds) when the PDF was generated/retrieved.
+   */
+  generatedAt: number;
+}
+
+/**
+ * Card payment method details
+ */
+export interface TCard {
+  /** Card brand: visa, mastercard, amex, etc. */
+  brand: string;
+  /** Last 4 digits */
+  last4: string;
+  /** Expiration month */
+  expMonth: number;
+  /** Expiration year */
+  expYear: number;
+  /** Funding type: credit, debit, prepaid, unknown */
+  funding: string;
+  /** Country code */
+  country?: string;
+}
+
+/**
+ * Bank account payment method details
+ */
+export interface TBankAccount {
+  /** Bank name */
+  bankName: string;
+  /** Last 4 digits */
+  last4: string;
+  /** Routing number */
+  routingNumber?: string;
+  /** Account type: checking, savings */
+  accountType?: string;
+}
+
+/**
+ * Represents payment method details (card, bank account, etc.)
+ */
+export interface TPaymentMethod {
+  /** Payment method type: card, bank_account, etc. */
+  type: string;
+
+  /** Card details (if type is card) */
+  card?: TCard;
+
+  /** Bank account details (if type is bank_account) */
+  bankAccount?: TBankAccount;
+
+  /** Customer ID */
+  customer?: string;
+
+  /** Payment method ID at provider */
+  id?: string;
+}
+
+/**
+ * Complete payment details for an invoice
+ */
+export interface TInvoicePaymentDetails {
+  /** Invoice ID */
+  invoiceId: string;
+
+  /** Payment method information */
+  paymentMethod: TPaymentMethod;
+
+  /** Payment date (timestamp in seconds) */
+  paymentDate?: number;
+
+  /** Payment amount (in minor units) */
+  amount?: number;
+
+  /** Currency code */
+  currency?: string;
+
+  /** Payment status */
+  status?: string;
+
+  /** Transaction ID */
+  transactionId?: string;
+
+  /** Payment description */
+  description?: string;
+}
+
+/**
+ * Represents a payment intent for tracking payment flow
+ */
+export interface TPaymentIntent {
+  /** Payment intent ID */
+  id: string;
+
+  /** Payment amount (in minor units) */
+  amount: number;
+
+  /** Currency code */
+  currency: string;
+
+  /**
+   * Payment status:
+   * - requires_payment_method
+   * - requires_confirmation
+   * - requires_action
+   * - processing
+   * - requires_capture
+   * - canceled
+   * - succeeded
+   */
+  status: PaymentStatus;
+
+  /** Creation timestamp (seconds) */
+  created: number;
+
+  /** Customer ID */
+  customer?: string;
+
+  /** Payment method details */
+  paymentMethod?: TPaymentMethod;
+
+  /** Payment description */
+  description?: string;
+
+  /** Metadata key-value pairs */
+  metadata?: Record<string, string>;
+
+  /** Latest charge ID */
+  latestCharge?: string;
+
+  /** Client secret for client-side confirmation */
+  clientSecret?: string;
+
+  /** Amount captured (if applicable) */
+  amountCapturable?: number;
+
+  /** Capture method: automatic or manual */
+  captureMethod?: string;
 }
 
 /**
