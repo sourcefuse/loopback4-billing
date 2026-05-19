@@ -1,6 +1,6 @@
 {
   "name": "loopback4-billing",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "loopback4-billing",
   "keywords": [
     "loopback-extension",
@@ -110,13 +110,13 @@
       ],
       "@semantic-release/release-notes-generator",
       [
-     "@semantic-release/npm",
-     {
-       "npmPublish": true,
-       "pkgRoot": ".",
-       "tarballDir": "dist"
-     }
-   ],
+        "@semantic-release/npm",
+        {
+          "npmPublish": true,
+          "pkgRoot": ".",
+          "tarballDir": "dist"
+        }
+      ],
       [
         "@semantic-release/git",
         {
