@@ -64,8 +64,7 @@ export class ChargebeePaymentIntentAdapter {
   private extractCurrencyCode(transaction: ChargebeeTransaction): string {
     const currencyCode =
       ((transaction as Record<string, unknown>)['currency_code'] as
-        | string
-        | undefined) ?? transaction.currencyCode;
+        string | undefined) ?? transaction.currencyCode;
     return currencyCode ?? 'usd';
   }
 
@@ -74,8 +73,7 @@ export class ChargebeePaymentIntentAdapter {
   ): string | undefined {
     return (
       ((transaction as Record<string, unknown>)['customer_id'] as
-        | string
-        | undefined) ?? transaction.customerId
+        string | undefined) ?? transaction.customerId
     );
   }
 
@@ -83,15 +81,13 @@ export class ChargebeePaymentIntentAdapter {
     transaction: ChargebeeTransaction,
   ): number | undefined {
     return (transaction as Record<string, unknown>)['amount_capturable'] as
-      | number
-      | undefined;
+      number | undefined;
   }
 
   private extractTransactionType(transaction: ChargebeeTransaction): string {
     return (
       ((transaction as Record<string, unknown>)['type'] as
-        | string
-        | undefined) ?? 'transaction'
+        string | undefined) ?? 'transaction'
     );
   }
 

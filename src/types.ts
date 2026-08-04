@@ -53,12 +53,7 @@ export interface IAdapter<T, R = T> {
 export interface Transaction {
   amount?: number; // Optional, in cents, min=0
   paymentMethod:
-    | 'cash'
-    | 'check'
-    | 'bank_transfer'
-    | 'other'
-    | 'custom'
-    | 'payment_source'; // Required
+    'cash' | 'check' | 'bank_transfer' | 'other' | 'custom' | 'payment_source'; // Required
   paymentSourceId?: string;
   referenceNumber?: string; // Optional, max 100 chars
   customPaymentMethodId?: string; // Optional, max 50 chars
@@ -115,12 +110,7 @@ export interface TInvoice {
 }
 
 export type InvoiceStatus =
-  | 'paid'
-  | 'posted'
-  | 'payment_due'
-  | 'not_paid'
-  | 'voided'
-  | 'pending';
+  'paid' | 'posted' | 'payment_due' | 'not_paid' | 'voided' | 'pending';
 
 // ---------------------------------------------------------------------------
 // Subscription Management Types
