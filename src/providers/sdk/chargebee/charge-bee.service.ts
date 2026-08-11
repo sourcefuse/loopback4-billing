@@ -394,8 +394,7 @@ export class ChargeBeeService implements IChargeBeeService {
           price: price.unitAmount,
           pricing_model: this.chargeBeeConfig.defaultPricingModel ?? 'flat_fee',
           period_unit: price.recurring?.interval as
-            | ChargebeePeriodUnit
-            | undefined,
+            ChargebeePeriodUnit | undefined,
           period: price.recurring?.intervalCount,
           tax_providers_fields: [], // Required by SDK type but can be empty
         })

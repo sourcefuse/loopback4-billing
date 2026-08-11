@@ -79,7 +79,7 @@
     "typescript": "~5.5.4"
   },
   "overrides": {
-    "undici": "^6.24.0",
+    "undici": "^6.28.0",
     "lodash": "^4.18.0"
   },
   "publishConfig": {

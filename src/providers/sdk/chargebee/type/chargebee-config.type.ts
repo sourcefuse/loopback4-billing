@@ -57,11 +57,7 @@ export interface ChargeBeeConfig {
 }
 
 export type ChargebeePricingModel =
-  | 'flat_fee'
-  | 'per_unit'
-  | 'tiered'
-  | 'volume'
-  | 'stairstep';
+  'flat_fee' | 'per_unit' | 'tiered' | 'volume' | 'stairstep';
 
 export type ChargebeePeriodUnit = 'day' | 'week' | 'month' | 'year';
 
