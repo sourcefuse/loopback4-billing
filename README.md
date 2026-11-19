@@ -168,6 +168,7 @@ export interface ICardDto {
   cvv: string;
 }
 ```
+
 * **createPaymentSource(paymentDto: TPaymentSource): Promise&lt;TPaymentSource&gt;** - Creates a new payment source for the customer.
 
 * **applyPaymentSourceForInvoice(invoiceId: string, transaction: Transaction): Promise&lt;TInvoice&gt;** - Applies an existing payment source to an invoice. Transaction defines as
